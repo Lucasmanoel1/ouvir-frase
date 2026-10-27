@@ -96,6 +96,16 @@ class VideoCsvReaderTest {
         assertThatIllegalArgumentException()
                 .isThrownBy(() -> leitor.ler(csv));
     }
+    @Test
+    void deveRejeitarComTituloVazio() throws IOException {
+        Path csv = criarCsv("""
+            youtube_id,idioma,titulo
+            AAAAAAAAAAA,en,
+            """);
+
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> leitor.ler(csv));
+    }
 
     @Test
     void deveLancarUncheckedIOExceptionQuandoArquivoNaoExiste(){

@@ -24,7 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @SpringBootTest
 @Testcontainers
-class IndexadorDeVideoIT {
+class IndexadorDeVideoTest {
 
     @Container
     @ServiceConnection

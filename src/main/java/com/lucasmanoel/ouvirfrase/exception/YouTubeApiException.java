@@ -1,7 +1,10 @@
 package com.lucasmanoel.ouvirfrase.exception;
 
-public class YoutubeApiException extends RuntimeException {
-  public YoutubeApiException(String message) {
-    super(message);
-  }
+public class YouTubeApiException extends RuntimeException {
+    public YouTubeApiException(String message) {
+        super(message);
+    }
+    public YouTubeApiException(String message, Throwable cause) {
+        super(message, cause);
+    }
 }

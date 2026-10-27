@@ -24,7 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @SpringBootTest
 @Testcontainers
-class IndexadorDeVideoIT {
+class IndexadorDeVideoTest {
 
     @Container
     @ServiceConnection
@@ -109,7 +109,7 @@ class IndexadorDeVideoIT {
     }
 
     @Test
-    void naoDeveIndexarQubreaDeLinhaComoPalavra() {
+    void naoDeveIndexarQuebraDeLinhaComoPalavra() {
         List<TrechoLegenda> trechos = List.of(
                 new TrechoLegenda("I really\nlove \n", 10.0, 3.0),
                 new TrechoLegenda("this idea [Music]", 13.0, 2.0));

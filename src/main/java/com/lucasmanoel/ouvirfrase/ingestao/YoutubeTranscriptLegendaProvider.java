@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
+import org.springframework.web.util.HtmlUtils;
 
 import java.util.List;
 import java.util.Optional;
@@ -61,7 +62,7 @@ public class YoutubeTranscriptLegendaProvider implements LegendaProvider {
 
     static List<TrechoLegenda> converter(TranscriptContent conteudo) {
         return conteudo.getContent().stream()
-                .map(f -> new TrechoLegenda(f.getText(), f.getStart(), f.getDur()))
+                .map(f -> new TrechoLegenda(HtmlUtils.htmlUnescape(f.getText()), f.getStart(), f.getDur()))
                 .toList();
     }
 }

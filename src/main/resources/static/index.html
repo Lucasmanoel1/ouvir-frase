@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OuvirFrase — ouça como a frase é falada</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>Ouvir<span>Frase</span></h1>
+    <form id="form-busca" autocomplete="off">
+      <input id="frase" type="text" placeholder="Digite uma palavra ou frase em inglês…" maxlength="200" required autofocus>
+      <button type="submit">Buscar</button>
+    </form>
+  </header>
+
+  <main>
+    <p id="status" role="status">Digite uma frase e veja trechos de vídeos em que ela é falada.</p>
+
+    <section id="resultado" hidden>
+      <div id="player-wrap"><div id="player"></div></div>
+
+      <p id="legenda" aria-live="polite"></p>
+      <p id="titulo"></p>
+
+      <nav>
+        <button id="anterior" type="button">← Anterior</button>
+        <span id="contador"></span>
+        <button id="proximo" type="button">Próximo →</button>
+      </nav>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+  <script src="https://www.youtube.com/iframe_api" async></script>
+</body>
+</html>

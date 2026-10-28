@@ -2,7 +2,6 @@ package com.lucasmanoel.ouvirfrase.service;
 
 import org.springframework.stereotype.Component;
 
-import javax.swing.*;
 import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.List;

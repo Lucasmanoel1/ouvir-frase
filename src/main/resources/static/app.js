@@ -2,9 +2,9 @@
   const $ = (id) => document.getElementById(id);
   const form = $('form-busca'), campo = $('frase'), status = $('status'), secao = $('resultado');
   const selo = $('selo'), legenda = $('legenda'), titulo = $('titulo'), contador = $('contador');
-  const btnAnterior = $('anterior'), btnProximo = $('proximo');
+  const btnAnterior = $('anterior'), btnProximo = $('proximo'), idiomaSel = $('idioma');
 
-  let resultados = [], indice = 0, frase = '';
+  let resultados = [], indice = 0, frase = '', idioma = 'en';
   let player = null, ytPronto = false, pendente = null;
 
   // --- YouTube IFrame Player API ---
@@ -30,11 +30,11 @@
   async function buscar(texto) {
     frase = texto.trim();
     if (!frase) return;
-    history.replaceState(null, '', '?q=' + encodeURIComponent(frase));
+    history.replaceState(null, '', '?q=' + encodeURIComponent(frase) + '&l=' + encodeURIComponent(idioma));
     status.textContent = 'Buscando…';
     secao.hidden = true;
     try {
-      const resp = await fetch('/api/busca?frase=' + encodeURIComponent(frase));
+      const resp = await fetch('/api/busca?frase=' + encodeURIComponent(frase) + '&idioma=' + encodeURIComponent(idioma));
       if (!resp.ok) {
         const corpo = await resp.json().catch(() => ({}));
         throw new Error(corpo.mensagem || 'Erro ao buscar. Tente novamente em instantes.');
@@ -76,9 +76,9 @@
   // Destaca a frase na legenda ignorando pontuação/caixa entre as palavras.
   function renderLegenda(texto) {
     legenda.textContent = '';
-    const palavras = frase.toLowerCase().match(/[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu) || [];
+    const palavras = frase.toLowerCase().match(/[\p{L}\p{M}\p{N}]+(?:['’][\p{L}\p{M}\p{N}]+)*/gu) || [];
     if (palavras.length === 0) { legenda.textContent = texto; return; }
-    const sep = "[^\\p{L}\\p{N}]+";
+    const sep = "[^\\p{L}\\p{M}\\p{N}]+";
     const re = new RegExp(palavras.map((p) => escaparRegex(p).replace(/'/g, "['’]")).join(sep), 'iu');
     const m = re.exec(texto);
     if (!m) { destacarPalavras(texto, palavras); return; }
@@ -90,7 +90,7 @@
   // Frase aproximada: não há trecho contínuo, então destaca cada palavra da frase que aparece.
   function destacarPalavras(texto, palavras) {
     const alternativas = [...new Set(palavras)].map((p) => escaparRegex(p).replace(/'/g, "['’]")).join('|');
-    const re = new RegExp("(?<![\\p{L}\\p{N}'’])(?:" + alternativas + ")(?![\\p{L}\\p{N}'’])", 'giu');
+    const re = new RegExp("(?<![\\p{L}\\p{M}\\p{N}'’])(?:" + alternativas + ")(?![\\p{L}\\p{M}\\p{N}'’])", 'giu');
     let ultimo = 0;
     for (const m of texto.matchAll(re)) {
       legenda.append(texto.slice(ultimo, m.index));
@@ -118,6 +118,35 @@
     if (e.key === 'ArrowRight') navegar(1);
   });
 
-  const q = new URLSearchParams(location.search).get('q');
-  if (q) { campo.value = q; buscar(q); }
+  // Seletor de idioma: aparece só quando há mais de um idioma indexado.
+  async function iniciar() {
+    const params = new URLSearchParams(location.search);
+    try {
+      const resp = await fetch('/api/idiomas');
+      const lista = resp.ok ? await resp.json() : [];
+      if (lista.length > 0) {
+        const pedido = params.get('l');
+        idioma = lista.includes(pedido) ? pedido : lista[0];
+        let nomes = null;
+        try { nomes = new Intl.DisplayNames([navigator.language || 'pt-BR'], { type: 'language' }); } catch (e) { /* usa o código */ }
+        for (const codigo of lista) {
+          const opcao = document.createElement('option');
+          opcao.value = codigo;
+          try { opcao.textContent = nomes ? nomes.of(codigo) : codigo; } catch (e) { opcao.textContent = codigo; }
+          idiomaSel.append(opcao);
+        }
+        idiomaSel.value = idioma;
+        idiomaSel.hidden = lista.length < 2;
+      }
+    } catch (e) { /* sem seletor: usa o idioma padrão */ }
+
+    idiomaSel.addEventListener('change', () => {
+      idioma = idiomaSel.value;
+      if (campo.value.trim()) buscar(campo.value);
+    });
+
+    const q = params.get('q');
+    if (q) { campo.value = q; buscar(q); }
+  }
+  iniciar();
 })();

@@ -21,3 +21,4 @@ main { max-width:860px; margin:0 auto; padding:0 16px 48px; }
 nav { display:flex; align-items:center; justify-content:center; gap:16px; }
 #contador { color:var(--suave); min-width:90px; text-align:center; }
 @media (max-width:480px) { #legenda { font-size:1.1rem; } }
+#idioma { padding:12px 10px; font-size:1rem; border-radius:8px; border:1px solid #2c313c; background:var(--card); color:var(--texto); max-width:9rem; }

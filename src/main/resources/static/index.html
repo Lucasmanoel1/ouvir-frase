@@ -10,7 +10,8 @@
   <header>
     <h1>Ouvir<span>Frase</span></h1>
     <form id="form-busca" autocomplete="off">
-      <input id="frase" type="text" placeholder="Digite uma palavra ou frase em inglês…" maxlength="200" required autofocus>
+      <select id="idioma" aria-label="Idioma" hidden></select>
+      <input id="frase" type="text" placeholder="Digite uma palavra ou frase…" maxlength="200" required autofocus>
       <button type="submit">Buscar</button>
     </form>
   </header>
@@ -22,7 +23,7 @@
       <div id="player-wrap"><div id="player"></div></div>
 
       <p id="selo" hidden></p>
-      <p id="legenda" aria-live="polite"></p>
+      <p id="legenda" aria-live="polite" dir="auto"></p>
       <p id="titulo"></p>
 
       <nav>

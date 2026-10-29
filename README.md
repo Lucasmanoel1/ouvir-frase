@@ -61,11 +61,12 @@ As migrações do Flyway rodam na subida. O banco começa vazio: é preciso roda
 
 ```json
 { "resultados": [
-  { "youtubeId": "abc123XYZ_-", "titulo": "…", "inicioSeg": 12.4, "legenda": "texto do trecho" }
+  { "youtubeId": "abc123XYZ_-", "titulo": "…", "inicioSeg": 12.4, "legenda": "texto do trecho",
+    "pontuacao": 1.0, "exata": true }
 ] }
 ```
 
-`inicioSeg` já vem com 3 s de antecedência. Sem resultado: `resultados` vazio. Frase vazia ou com mais de 200 caracteres: `400`.
+`inicioSeg` já vem com 3 s de antecedência. As frases exatas vêm primeiro (`exata: true`); depois as aproximadas, com `pontuacao` = palavras casadas / total (mínimo 0,7). Sem resultado: `resultados` vazio. Frase vazia ou com mais de 200 caracteres: `400`.
 
 ## Testes
 
@@ -88,7 +89,8 @@ src/main/resources/static/   # front (HTML/CSS/JS puro)
 
 - O YouTube não informa o tempo de cada palavra: o início é **estimado** dentro do trecho (distribuição uniforme). O recuo de 3 s cobre a imprecisão. Nos trechos mais longos o erro é maior.
 - Só legendas **manuais** em inglês; vídeo sem legenda manual não entra.
-- Busca **exata**: a frase inteira, em sequência, no mesmo vídeo. Sem busca aproximada nem ranking; os resultados saem na ordem do banco (limite de 50).
+- A busca tem dois níveis: **exata** (frase inteira, em sequência, no mesmo vídeo) e **aproximada** (≥ 70% das palavras na ordem, dentro de uma janela de 2× o tamanho da frase; só para frases de 2+ palavras). Máximo de 2 resultados por vídeo e 50 no total. O ranking é simples: exatas, depois mais palavras casadas, depois trecho mais compacto.
+- Na busca aproximada, palavras muito comuns geram muitos candidatos; há um teto de 20.000 linhas por busca.
 - Acento não é removido (`cafe` ≠ `café`) e `dont` não casa com `don't`.
 - Números aparecem como dígitos na legenda mas são falados por extenso.
 - A biblioteca de legendas usa uma API não documentada do YouTube e pode parar de funcionar; por isso fica atrás da interface `LegendaProvider`.
@@ -96,4 +98,4 @@ src/main/resources/static/   # front (HTML/CSS/JS puro)
 
 ## Próximos passos (pós-MVP)
 
-Busca por lacunas e ranking · automação da seleção de vídeos · outros idiomas · front mais elaborado · pronúncia, quiz, flashcards · deploy.
+Automação da seleção de vídeos · outros idiomas · front mais elaborado · pronúncia, quiz, flashcards · deploy.

@@ -61,4 +61,41 @@ public class BuscaRepository {
                 .map(r -> new Acerto((String) r[0], (String) r[1], ((Number) r[2]).doubleValue(), (String) r[3]))
                 .toList();
     }
+
+    public record OcorrenciaCandidata(long videoId, String palavra, int posicao, long trechoId, double inicioSeg) {
+    }
+
+    /**
+     * Candidatas da busca por lacunas: ocorrências das palavras da frase, só nos vídeos que contêm
+     * pelo menos 'distintasMinimas' dessas palavras. Ordenadas por vídeo e posição.
+     * 'limite' protege contra palavras muito comuns (o corte descarta os últimos vídeos).
+     */
+    @SuppressWarnings("unchecked")
+    public List<OcorrenciaCandidata> buscarCandidatas(List<String> palavras, int distintasMinimas, int limite) {
+        String sql = "SELECT o.video_id, o.palavra, o.posicao, o.trecho_id, o.inicio_seg FROM ocorrencia o "
+                + "WHERE o.palavra IN (:palavras) AND o.video_id IN ("
+                + "SELECT c.video_id FROM ocorrencia c WHERE c.palavra IN (:palavras) "
+                + "GROUP BY c.video_id HAVING count(DISTINCT c.palavra) >= " + distintasMinimas + ") "
+                + "ORDER BY o.video_id, o.posicao";
+        Query query = em.createNativeQuery(sql);
+        query.setParameter("palavras", palavras);
+        query.setMaxResults(limite);
+
+        return ((List<Object[]>) query.getResultList()).stream()
+                .map(r -> new OcorrenciaCandidata(((Number) r[0]).longValue(), (String) r[1],
+                        ((Number) r[2]).intValue(), ((Number) r[3]).longValue(), ((Number) r[4]).doubleValue()))
+                .toList();
+    }
+
+    /** Texto dos trechos entre o primeiro e o último (inclusive) de um vídeo. */
+    public String legenda(long videoId, long trechoInicio, long trechoFim) {
+        Query query = em.createNativeQuery(
+                "SELECT string_agg(x.texto, ' ' ORDER BY x.ordem) FROM trecho x WHERE x.video_id = ?1 "
+                        + "AND x.ordem BETWEEN (SELECT ordem FROM trecho WHERE id = ?2) "
+                        + "AND (SELECT ordem FROM trecho WHERE id = ?3)");
+        query.setParameter(1, videoId);
+        query.setParameter(2, trechoInicio);
+        query.setParameter(3, trechoFim);
+        return (String) query.getSingleResult();
+    }
 }

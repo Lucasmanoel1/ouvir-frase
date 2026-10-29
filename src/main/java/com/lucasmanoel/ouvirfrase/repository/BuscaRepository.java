@@ -24,7 +24,7 @@ public class BuscaRepository {
 
     private final EntityManager em;
 
-    public record Acerto(String youtubeId, String titulo, double inicioSeg, String legenda) {
+    public record Acerto(String youtubeId, String titulo, double inicioSeg, double fimSeg, String legenda) {
     }
 
     @SuppressWarnings("unchecked")
@@ -32,8 +32,9 @@ public class BuscaRepository {
         int n = palavras.size();
 
         StringBuilder sql = new StringBuilder();
-        sql.append("SELECT q.youtube_id, q.titulo, q.inicio_seg, q.legenda FROM (")
+        sql.append("SELECT q.youtube_id, q.titulo, q.inicio_seg, q.fim_seg, q.legenda FROM (")
            .append("SELECT v.id AS video_id, o1.posicao AS posicao, v.youtube_id, v.titulo, o1.inicio_seg, ")
+           .append("(tf.inicio_seg + tf.duracao_seg) AS fim_seg, ")
            .append("(SELECT string_agg(x.texto, ' ' ORDER BY x.ordem) FROM trecho x ")
            .append("  WHERE x.video_id = o1.video_id AND x.ordem BETWEEN t1.ordem AND tf.ordem) AS legenda, ")
            .append("row_number() OVER (PARTITION BY v.id ORDER BY o1.posicao) AS rn ")
@@ -59,7 +60,8 @@ public class BuscaRepository {
         query.setMaxResults(limite);
 
         return ((List<Object[]>) query.getResultList()).stream()
-                .map(r -> new Acerto((String) r[0], (String) r[1], ((Number) r[2]).doubleValue(), (String) r[3]))
+                .map(r -> new Acerto((String) r[0], (String) r[1], ((Number) r[2]).doubleValue(),
+                        ((Number) r[3]).doubleValue(), (String) r[4]))
                 .toList();
     }
 
@@ -89,6 +91,13 @@ public class BuscaRepository {
                 .map(r -> new OcorrenciaCandidata(((Number) r[0]).longValue(), (String) r[1],
                         ((Number) r[2]).intValue(), ((Number) r[3]).longValue(), ((Number) r[4]).doubleValue()))
                 .toList();
+    }
+
+    /** Instante em que o trecho termina (início + duração). */
+    public double fimDoTrecho(long trechoId) {
+        Query query = em.createNativeQuery("SELECT inicio_seg + duracao_seg FROM trecho WHERE id = ?1");
+        query.setParameter(1, trechoId);
+        return ((Number) query.getSingleResult()).doubleValue();
     }
 
     /** Texto dos trechos entre o primeiro e o último (inclusive) de um vídeo. */

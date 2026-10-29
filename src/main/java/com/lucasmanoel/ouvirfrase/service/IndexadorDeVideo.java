@@ -79,4 +79,32 @@ public class IndexadorDeVideo {
         return ocorrencias.size();
 
     }
+
+    /** Marca de "já tentei e o vídeo não tem tradução", para a ingestão não pedir de novo a cada rodada. */
+    public static final String SEM_TRADUCAO = "-";
+
+    /** Grava a tradução em cada trecho do vídeo, casando por tempo. Devolve a fração de trechos que ganhou tradução. */
+    @Transactional
+    public double aplicarTraducao(String youtubeId, String idiomaAlvo, List<TrechoLegenda> traduzidos) {
+        Video video = videoRepository.findByYoutubeId(youtubeId)
+                .orElseThrow(() -> new IllegalArgumentException("Vídeo não indexado: " + youtubeId));
+        List<Trecho> trechos = trechoRepository.findByVideoYoutubeIdOrderByOrdem(youtubeId);
+
+        List<String> textos = AlinhadorDeTraducao.alinhar(
+                trechos.stream().map(Trecho::getInicioSeg).toList(), traduzidos);
+        int alinhados = 0;
+        for (int i = 0; i < trechos.size(); i++) {
+            trechos.get(i).setTraducao(textos.get(i));
+            if (textos.get(i) != null) {
+                alinhados++;
+            }
+        }
+        video.setTraducaoIdioma(alinhados > 0 ? idiomaAlvo : SEM_TRADUCAO);
+        return trechos.isEmpty() ? 0 : (double) alinhados / trechos.size();
+    }
+
+    @Transactional
+    public void marcarSemTraducao(String youtubeId) {
+        videoRepository.findByYoutubeId(youtubeId).ifPresent(v -> v.setTraducaoIdioma(SEM_TRADUCAO));
+    }
 }

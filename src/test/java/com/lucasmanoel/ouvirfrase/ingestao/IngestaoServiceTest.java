@@ -42,7 +42,7 @@ class IngestaoServiceTest {
 
     @BeforeEach
     void preparar() {
-        service = new IngestaoService(catalogo, filtro, legendaProvider, indexador, videoRepository, 0, 0);
+        service = new IngestaoService(catalogo, filtro, legendaProvider, indexador, videoRepository, 0, 0, "");
     }
 
     @Test
@@ -82,5 +82,24 @@ class IngestaoServiceTest {
 
         verify(legendaProvider, never()).buscar(C.youtubeId(), "en");
         verifyNoInteractions(indexador);
+    }
+
+    @Test
+    void deveCompletarSoATraducaoDeVideoJaIndexadoSemTraducao() {
+        IngestaoService comTraducao = new IngestaoService(
+                catalogo, filtro, legendaProvider, indexador, videoRepository, 0, 0, "pt");
+        com.lucasmanoel.ouvirfrase.model.Video indexado = new com.lucasmanoel.ouvirfrase.model.Video();
+        List<TrechoLegenda> traduzidos = List.of(new TrechoLegenda("olá mundo", 1.0, 2.0));
+        when(catalogo.carregar(DADOS)).thenReturn(List.of(A));
+        when(videoRepository.existsByYoutubeId(A.youtubeId())).thenReturn(true);
+        when(videoRepository.findByYoutubeId(A.youtubeId())).thenReturn(Optional.of(indexado));
+        when(filtro.filtrar(List.of())).thenReturn(new ResultadoFiltro(List.of(), Map.of()));
+        when(legendaProvider.buscarTraducao(A.youtubeId(), "en", "pt")).thenReturn(Optional.of(traduzidos));
+        when(indexador.aplicarTraducao(A.youtubeId(), "pt", traduzidos)).thenReturn(1.0);
+
+        comTraducao.executar(DADOS);
+
+        verify(indexador).aplicarTraducao(A.youtubeId(), "pt", traduzidos);
+        verify(legendaProvider, never()).buscar(A.youtubeId(), "en");
     }
 }

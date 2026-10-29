@@ -11,19 +11,19 @@ import org.springframework.web.method.annotation.HandlerMethodValidationExceptio
 @RestControllerAdvice
 public class TratadorDeErros {
 
-    private static final String MENSAGEM_FRASE = "Informe uma frase de até 200 caracteres e um idioma válido (ex.: en).";
+    private static final String MENSAGEM = "Parâmetros inválidos. Informe uma frase de até 200 caracteres e um idioma válido (ex.: en).";
 
     // @NotBlank / @Size nos parâmetros do controller
     @ExceptionHandler(HandlerMethodValidationException.class)
     ResponseEntity<ErroResposta> validacao(HandlerMethodValidationException e) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(new ErroResposta("requisicao_invalida", MENSAGEM_FRASE));
+                .body(new ErroResposta("requisicao_invalida", MENSAGEM));
     }
 
     // parâmetro "frase" ausente
     @ExceptionHandler(MissingServletRequestParameterException.class)
     ResponseEntity<ErroResposta> parametroAusente(MissingServletRequestParameterException e) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(new ErroResposta("requisicao_invalida", MENSAGEM_FRASE));
+                .body(new ErroResposta("requisicao_invalida", MENSAGEM));
     }
 }

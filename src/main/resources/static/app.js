@@ -6,10 +6,14 @@
   const idiomaSel = $('idioma'), pilula = $('pilula-idioma');
 
   const CHAVE_HISTORICO = 'ouvirfrase.historico';
+  const CHAVE_TRADUCAO = 'ouvirfrase.traducao';
+  const RECUO_SEG = 3; // quanto o backend recua o início do resultado
   const EXEMPLOS = { en: ['thank you very much', 'you know what', 'a lot of'] };
 
   let resultados = [], indice = 0, frase = '', idioma = 'en';
   let player = null, ytPronto = false, pendente = null;
+  let cues = null, cueAtual = -2, temTraducao = false, traducaoLigada = lerTraducao();
+  const legendas = new Map(); // youtubeId -> Promise da legenda completa do vídeo
 
   const estado = (nome) => { document.body.dataset.estado = nome; };
 
@@ -41,6 +45,75 @@
     } else {
       player.loadVideoById({ videoId: r.youtubeId, startSeconds: inicio });
     }
+  }
+
+  // --- legenda que acompanha o vídeo ---
+  function lerTraducao() {
+    try { return localStorage.getItem(CHAVE_TRADUCAO) !== 'nao'; } catch (e) { return true; }
+  }
+
+  function buscarLegenda(id) {
+    if (!legendas.has(id)) {
+      legendas.set(id, fetch('/api/videos/' + encodeURIComponent(id) + '/legenda')
+        .then((resp) => (resp.ok ? resp.json() : null))
+        .catch(() => null)
+        .then((l) => {
+          const ok = Array.isArray(l) && l.length > 0;
+          if (!ok) legendas.delete(id); // tenta de novo na próxima vez
+          return ok ? l : null;
+        }));
+    }
+    return legendas.get(id);
+  }
+
+  // Última fala que começou até o instante t; passado um instante do fim dela, nenhuma (música, silêncio).
+  function cueEm(t) {
+    let baixo = 0, alto = cues.length - 1, achado = -1;
+    while (baixo <= alto) {
+      const meio = (baixo + alto) >> 1;
+      if (cues[meio].inicioSeg <= t + 0.1) { achado = meio; baixo = meio + 1; } else { alto = meio - 1; }
+    }
+    if (achado >= 0 && t > cues[achado].inicioSeg + cues[achado].duracaoSeg + 0.6) return -1;
+    return achado;
+  }
+
+  function aoTempo(t) {
+    if (!cues) return;
+    const i = cueEm(t);
+    if (i === cueAtual) return;
+    cueAtual = i;
+    const c = i >= 0 ? cues[i] : null;
+    const r = resultados[indice];
+    // palavras soltas (frase aproximada) só dentro do trecho do resultado, para não marcar "the" em toda fala
+    const soltas = !!c && r.exata === false && c.inicioSeg >= r.inicioSeg + RECUO_SEG - 0.1 && c.inicioSeg < r.fimSeg;
+    renderLegenda(legenda, c ? c.texto : '', soltas);
+    $('traducao').textContent = c && c.traducao ? c.traducao : '';
+  }
+
+  function atualizarTraducao() {
+    const botao = $('traducao-botao');
+    botao.hidden = !temTraducao;
+    botao.setAttribute('aria-pressed', String(traducaoLigada));
+    const rotulo = traducaoLigada ? 'Ocultar a tradução' : 'Mostrar a tradução';
+    botao.setAttribute('aria-label', rotulo);
+    botao.title = rotulo;
+    $('traducao').hidden = !(temTraducao && traducaoLigada);
+  }
+
+  function carregarLegendaDoVideo(r) {
+    cues = null;
+    cueAtual = -2;
+    temTraducao = false;
+    $('traducao').textContent = '';
+    atualizarTraducao();
+    buscarLegenda(r.youtubeId).then((l) => {
+      const atual = resultados[indice];
+      if (!l || !atual || atual.youtubeId !== r.youtubeId) return; // falhou (fica o trecho estático) ou o usuário já trocou
+      cues = l;
+      cueAtual = -2;
+      temTraducao = l.some((c) => c.traducao);
+      atualizarTraducao();
+    });
   }
 
   function pausar() { if (player && player.pauseVideo) player.pauseVideo(); }
@@ -167,6 +240,7 @@
     selo.hidden = r.exata !== false;
     selo.textContent = 'Frase aproximada · ' + Math.round((r.pontuacao || 0) * 100) + '% das palavras';
     renderLegenda(legenda, r.legenda || '');
+    carregarLegendaDoVideo(r);
     titulo.textContent = r.titulo || '';
     contador.textContent = (indice + 1) + ' de ' + resultados.length;
     btnAnterior.disabled = indice === 0;
@@ -186,14 +260,17 @@
   function escaparRegex(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 
   // Destaca a frase na legenda ignorando pontuação/caixa entre as palavras.
-  function renderLegenda(alvo, texto) {
+  function renderLegenda(alvo, texto, aceitaSoltas = true) {
     alvo.textContent = '';
     const palavras = frase.toLowerCase().match(/[\p{L}\p{M}\p{N}]+(?:['’][\p{L}\p{M}\p{N}]+)*/gu) || [];
     if (palavras.length === 0) { alvo.textContent = texto; return; }
     const sep = "[^\\p{L}\\p{M}\\p{N}]+";
     const re = new RegExp(palavras.map((p) => escaparRegex(p).replace(/'/g, "['’]")).join(sep), 'iu');
     const m = re.exec(texto);
-    if (!m) { destacarPalavras(alvo, texto, palavras); return; }
+    if (!m) {
+      if (aceitaSoltas) destacarPalavras(alvo, texto, palavras); else alvo.textContent = texto;
+      return;
+    }
     const marca = document.createElement('mark');
     marca.textContent = m[0];
     alvo.append(texto.slice(0, m.index), marca, texto.slice(m.index + m[0].length));
@@ -255,7 +332,9 @@
   }
 
   function renderChips() {
-    const exemplos = (EXEMPLOS[idioma] || []).map((t) => chip(t, () => { campo.value = t; buscar(t); }));
+    const recentes = new Set(lerHistorico().filter((x) => x.l === idioma).map((x) => x.f.toLowerCase()));
+    const exemplos = (EXEMPLOS[idioma] || []).filter((t) => !recentes.has(t.toLowerCase()))
+      .map((t) => chip(t, () => { campo.value = t; buscar(t); }));
     preencherChips($('exemplos'), 'Experimente', 'arrow-right', exemplos);
 
     const historico = lerHistorico().map((x) => chip(x.f, () => {
@@ -291,6 +370,11 @@
   btnAnterior.addEventListener('click', () => navegar(-1));
   btnProximo.addEventListener('click', () => navegar(1));
   $('copiar').addEventListener('click', copiarLink);
+  $('traducao-botao').addEventListener('click', () => {
+    traducaoLigada = !traducaoLigada;
+    try { localStorage.setItem(CHAVE_TRADUCAO, traducaoLigada ? 'sim' : 'nao'); } catch (e) { /* ignora */ }
+    atualizarTraducao();
+  });
   document.addEventListener('keydown', (e) => {
     if (document.body.dataset.estado !== 'resultados') return;
     if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
@@ -340,7 +424,7 @@
     if (q) { campo.value = q; buscar(q); }
   }
 
-  Ferramentas.iniciar({ getPlayer: () => player, estudoAberto: () => document.body.dataset.estado === 'resultados' });
+  Ferramentas.iniciar({ getPlayer: () => player, estudoAberto: () => document.body.dataset.estado === 'resultados', aoTempo });
   Pronuncia.iniciar({
     getAlvo: (tipo) => (tipo === 'trecho' ? (resultados[indice] || {}).legenda : frase),
     getIdioma: () => idioma,

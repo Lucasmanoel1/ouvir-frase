@@ -36,6 +36,7 @@ public class IngestaoService {
     private final VideoRepository videoRepository;
     private final long pausaMs;
     private final int limite;
+    private final String idiomaDeTraducao;
 
     public IngestaoService(CatalogoDeVideos catalogo,
                            FiltroEmbeddable filtro,
@@ -43,7 +44,8 @@ public class IngestaoService {
                            IndexadorDeVideo indexador,
                            VideoRepository videoRepository,
                            @Value("${ingestao.pausa-ms:1500}") long pausaMs,
-                           @Value("${ingestao.limite:0}") int limite) {
+                           @Value("${ingestao.limite:0}") int limite,
+                           @Value("${ingestao.traduzir:}") String idiomaDeTraducao) {
         this.catalogo = catalogo;
         this.filtro = filtro;
         this.legendaProvider = legendaProvider;
@@ -51,17 +53,22 @@ public class IngestaoService {
         this.videoRepository = videoRepository;
         this.pausaMs = pausaMs;
         this.limite = limite;
+        this.idiomaDeTraducao = idiomaDeTraducao == null ? "" : idiomaDeTraducao.trim();
     }
 
     public RelatorioIngestao executar(Path dados) {
         List<VideoSemente> sementes = catalogo.carregar(dados);
 
         List<VideoSemente> novas = new ArrayList<>();
+        List<VideoSemente> semTraducao = new ArrayList<>();
         int jaIndexados = 0;
         for (VideoSemente s : sementes) {
             if (videoRepository.existsByYoutubeId(s.youtubeId())) {
                 jaIndexados++;
                 completarCanal(s);
+                if (precisaTraduzir(s)) {
+                    semTraducao.add(s);
+                }
             } else {
                 novas.add(s);
             }
@@ -70,6 +77,7 @@ public class IngestaoService {
         Map<VideoSemente, MotivoDescarte> descartados = new LinkedHashMap<>();
         int indexados = 0;
         int adiados = 0;
+        int traduzidos = 0;
         try {
             ResultadoFiltro filtrado = filtro.filtrar(novas);
             descartados.putAll(filtrado.descartados());
@@ -98,13 +106,56 @@ public class IngestaoService {
                     log.info("Indexado [{}] {}: {} ocorrências", video.youtubeId(), video.titulo(), ocorrencias);
                 } catch (IllegalArgumentException e) {
                     descartar(descartados, video, MotivoDescarte.SEM_PALAVRAS);
+                    continue;
                 }
+                if (precisaTraduzir(video)) {
+                    traduzidos += traduzir(video);
+                }
+            }
+
+            // vídeos indexados antes da tradução existir: completa só a tradução
+            for (int i = 0; i < semTraducao.size() && (limite <= 0 || i < limite); i++) {
+                traduzidos += traduzir(semTraducao.get(i));
+            }
+            if (limite > 0 && semTraducao.size() > limite) {
+                log.info("Tradução adiada pelo limite: {} vídeos (rode de novo)", semTraducao.size() - limite);
             }
         } catch (FalhaNaBuscaDeLegendaException | YouTubeApiException e) {
             throw new IngestaoInterrompidaException(
                     new RelatorioIngestao(sementes.size(), indexados, jaIndexados, 0, descartados), e);
         }
+        if (!idiomaDeTraducao.isEmpty()) {
+            log.info("Traduzidos agora para '{}': {}", idiomaDeTraducao, traduzidos);
+        }
         return new RelatorioIngestao(sementes.size(), indexados, jaIndexados, adiados, descartados);
+    }
+
+    private boolean precisaTraduzir(VideoSemente semente) {
+        if (idiomaDeTraducao.isEmpty() || semente.idioma().equalsIgnoreCase(idiomaDeTraducao)) {
+            return false;
+        }
+        // vídeo recém-indexado entra aqui já sem tradução
+        return videoRepository.findByYoutubeId(semente.youtubeId())
+                .map(v -> v.getTraducaoIdioma() == null)
+                .orElse(true);
+    }
+
+    /** Devolve 1 se o vídeo ganhou tradução. Falha de rede sobe e interrompe a ingestão, como na legenda. */
+    private int traduzir(VideoSemente video) {
+        pausar();
+        Optional<List<TrechoLegenda>> traduzida =
+                legendaProvider.buscarTraducao(video.youtubeId(), video.idioma(), idiomaDeTraducao);
+        if (traduzida.isEmpty()) {
+            indexador.marcarSemTraducao(video.youtubeId());
+            return 0;
+        }
+        double taxa = indexador.aplicarTraducao(video.youtubeId(), idiomaDeTraducao, traduzida.get());
+        if (taxa < 0.9) {
+            log.warn("Tradução [{}] {}: só {}% dos trechos casaram", video.youtubeId(), video.titulo(), Math.round(taxa * 100));
+        } else {
+            log.info("Traduzido [{}] {}: {}% dos trechos", video.youtubeId(), video.titulo(), Math.round(taxa * 100));
+        }
+        return 1;
     }
 
     /** Vídeos indexados antes da coluna 'canal' existir ganham o canal ao reaparecer no catálogo. */

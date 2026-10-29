@@ -10,7 +10,8 @@ const Ferramentas = (() => {
   // YT.PlayerState (a constante YT só existe depois da API carregar)
   const ENCERRADO = 0, TOCANDO = 1, PAUSADO = 2, EM_FILA = 5, NAO_INICIADO = -1;
 
-  let getPlayer = () => null, estudoAberto = () => false;
+  let getPlayer = () => null, estudoAberto = () => false, aoTempo = () => {};
+  let estadoAtual = NAO_INICIADO;
   let trecho = null, loop = false, velocidade = lerVelocidade(), timer = null;
   const opcoes = new Map();
 
@@ -31,9 +32,15 @@ const Ferramentas = (() => {
   // --- trecho atual ---
   function trechoMudou(r) {
     $('progresso').style.width = '0';
-    if (!r) { trecho = null; return; }
+    if (!r) {
+      trecho = null;
+      if (timer) { clearInterval(timer); timer = null; }
+      return;
+    }
     const fim = r.fimSeg > r.inicioSeg ? r.fimSeg : r.inicioSeg + DURACAO_PADRAO_SEG;
     trecho = { youtubeId: r.youtubeId, inicio: r.inicioSeg, fim };
+    // o relógio roda com o estudo aberto (não só tocando): a legenda também acompanha pausa e arrasto na barra do YouTube
+    if (!timer) timer = setInterval(tick, TICK_MS);
   }
 
   // Evita agir com o tempo do vídeo anterior enquanto o novo ainda carrega.
@@ -50,13 +57,12 @@ const Ferramentas = (() => {
   }
 
   function aoMudarEstado(estado) {
+    estadoAtual = estado;
     if (estado === TOCANDO) {
       mostrarTocando(true);
       aplicarVelocidade();
-      if (!timer) timer = setInterval(tick, TICK_MS);
-    } else {
-      if (estado === PAUSADO || estado === ENCERRADO || estado === EM_FILA || estado === NAO_INICIADO) mostrarTocando(false);
-      if (timer) { clearInterval(timer); timer = null; }
+    } else if (estado === PAUSADO || estado === ENCERRADO || estado === EM_FILA || estado === NAO_INICIADO) {
+      mostrarTocando(false);
     }
     if (estado === ENCERRADO && loop) reiniciar();
   }
@@ -67,7 +73,8 @@ const Ferramentas = (() => {
     const t = p.getCurrentTime();
     const fracao = (t - trecho.inicio) / (trecho.fim - trecho.inicio);
     $('progresso').style.width = Math.round(Math.min(1, Math.max(0, fracao)) * 100) + '%';
-    if (loop && t >= trecho.fim) p.seekTo(trecho.inicio, true);
+    if (loop && estadoAtual === TOCANDO && t >= trecho.fim) p.seekTo(trecho.inicio, true);
+    aoTempo(t);
   }
 
   // --- ações ---
@@ -122,6 +129,7 @@ const Ferramentas = (() => {
   function iniciar(config) {
     getPlayer = config.getPlayer;
     estudoAberto = config.estudoAberto;
+    if (config.aoTempo) aoTempo = config.aoTempo;
 
     for (const v of VELOCIDADES) {
       const botao = document.createElement('button');

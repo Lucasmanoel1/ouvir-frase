@@ -61,9 +61,13 @@ As migrações do Flyway rodam na subida. O banco começa vazio: é preciso roda
 - `--ingestao.limite=N` processa no máximo N vídeos por execução (o resto aparece como "adiados"). Se o YouTube bloquear o IP no meio, o relatório parcial é impresso antes de sair com erro.
 - Ao final é impresso um relatório: quantos entraram, quantos já existiam e quantos foram descartados (e por quê).
 
+### Idiomas
+
+Uma pasta por idioma em `data/`: `en`, `es`, `fr`, `de`, `it`, `ja`, `ko`, `zh-CN`, `ru`. O nome da pasta (e a coluna `idioma` do CSV) é o **código que o YouTube usa nas legendas** (por exemplo `zh-CN`, `pt-BR`), porque é com ele que a legenda manual é procurada. Para um idioma novo, crie a pasta e o CSV; o seletor do front aparece sozinho quando há mais de um idioma indexado.
+
 ### API
 
-`GET /api/busca?frase=...`
+`GET /api/busca?frase=...&idioma=en` (`idioma` é opcional, padrão `en`). `GET /api/idiomas` lista os idiomas que têm vídeos indexados.
 
 ```json
 { "resultados": [
@@ -99,9 +103,10 @@ src/main/resources/static/   # front (HTML/CSS/JS puro)
 - Na busca aproximada, palavras muito comuns geram muitos candidatos; há um teto de 20.000 linhas por busca.
 - Acento não é removido (`cafe` ≠ `café`) e `dont` não casa com `don't`.
 - Números aparecem como dígitos na legenda mas são falados por extenso.
+- Chinês e japonês não têm espaço entre palavras: cada caractere é um token, então a busca é por sequência de caracteres. Fora do inglês o apóstrofo separa palavras (`l'homme` vira `l` + `homme`).
 - A biblioteca de legendas usa uma API não documentada do YouTube e pode parar de funcionar; por isso fica atrás da interface `LegendaProvider`.
 - `embeddable=true` não garante que o vídeo toque em todos os países.
 
 ## Próximos passos (pós-MVP)
 
-Automação da seleção de vídeos · outros idiomas · front mais elaborado · pronúncia, quiz, flashcards · deploy.
+Automação da seleção de vídeos · front mais elaborado · pronúncia, quiz, flashcards · deploy.

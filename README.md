@@ -61,6 +61,16 @@ As migrações do Flyway rodam na subida. O banco começa vazio: é preciso roda
 - `--ingestao.limite=N` processa no máximo N vídeos por execução (o resto aparece como "adiados"). Se o YouTube bloquear o IP no meio, o relatório parcial é impresso antes de sair com erro.
 - Ao final é impresso um relatório: quantos entraram, quantos já existiam e quantos foram descartados (e por quê).
 
+#### Tradução da legenda (opcional)
+
+Com `--ingestao.traduzir=pt`, cada vídeo também recebe a **tradução automática do YouTube** (`Transcript.translate`) para português, gravada em `trecho.traducao`. Vale para vídeos novos e, na mesma execução, para os **já indexados que ainda não têm tradução** (só os que estão nos CSVs). Cada vídeo traduzido custa 1 a 2 requisições a mais, então rode em lotes e com pausa maior, repetindo até acabar:
+
+```
+-Dspring-boot.run.arguments="--ingestao.traduzir=pt --ingestao.pausa-ms=6000 --ingestao.limite=40"
+```
+
+A tradução é casada com os trechos por **tempo de início** (tolerância de 1 s). O log mostra a porcentagem de trechos que casaram por vídeo (aviso abaixo de 90%). Vídeo que não permite tradução é marcado (`video.traducao_idioma = '-'`) e não é tentado de novo.
+
 ### Idiomas
 
 Uma pasta por idioma em `data/`: `en`, `es`, `fr`, `de`, `it`, `ja`, `ko`, `zh-CN`, `ru`. O nome da pasta (e a coluna `idioma` do CSV) é o **código que o YouTube usa nas legendas** (por exemplo `zh-CN`, `pt-BR`), porque é com ele que a legenda manual é procurada. Para um idioma novo, crie a pasta e o CSV; o seletor do front aparece sozinho quando há mais de um idioma indexado.
@@ -78,12 +88,21 @@ Uma pasta por idioma em `data/`: `en`, `es`, `fr`, `de`, `it`, `ja`, `ko`, `zh-C
 
 `inicioSeg` já vem com 3 s de antecedência; `fimSeg` é onde termina o último trecho da legenda (o front usa para o loop). As frases exatas vêm primeiro (`exata: true`); depois as aproximadas, com `pontuacao` = palavras casadas / total (mínimo 0,7). Sem resultado: `resultados` vazio. Frase vazia ou com mais de 200 caracteres: `400`.
 
+`GET /api/videos/{youtubeId}/legenda` devolve a legenda completa do vídeo, em ordem, para o front acompanhar o vídeo (com cache de 1 dia no navegador):
+
+```json
+[ { "texto": "so what do you think", "traducao": "então o que você acha", "inicioSeg": 12.4, "duracaoSeg": 2.1 } ]
+```
+
+`traducao` é `null` quando o vídeo ainda não foi traduzido. Vídeo desconhecido: lista vazia.
+
 ## Front
 
 Página estática (HTML, CSS e JS puro, sem build) servida pelo próprio Spring. Identidade visual, cores, tipografia e voz em [`docs/identidade-visual.md`](docs/identidade-visual.md).
 
 - **Tela inicial:** busca, seletor de idioma, exemplos, buscas recentes (guardadas só no navegador) e o ritmo "Busque. Ouça. Repita.".
 - **Estúdio (depois da busca):** player com barra de progresso do trecho, a dock de controles, a legenda com a frase destacada, a faixa de prática e a lista de todas as ocorrências (miniatura, trecho, selo de frase aproximada). No desktop tudo cabe numa tela sem rolar; no celular os controles ficam acima da dobra.
+- **Legenda que acompanha o vídeo:** o cartão mostra a fala do instante atual (também com o vídeo pausado ou depois de arrastar a barra do YouTube), com a frase buscada destacada. Abaixo, em fonte menor, a tradução para português; o botão com o ícone de tradução liga e desliga (lembrado no navegador) e some nos vídeos sem tradução. Se a API da legenda falhar, o cartão continua mostrando o trecho do resultado.
 - **Dock do player:** play/pause, voltar e avançar 2 s, loop do trecho (volta ao início ao chegar em `fimSeg`) e velocidade de 0,25× a 1,5× (lembrada no navegador).
 - **Pronúncia:** o botão de microfone fica sempre visível. O usuário repete a frase buscada (ou o trecho inteiro); o navegador reconhece a fala (Web Speech API) e a página compara palavra por palavra, com porcentagem e as palavras que faltaram. Não há nada no servidor. Só funciona no Chrome e no Edge e exige HTTPS fora do `localhost`.
 - **Idioma:** a pílula de idioma fica sempre visível; vira um botão (com seta) quando há mais de um idioma indexado.
@@ -120,6 +139,8 @@ docs/                        # identidade visual e roteiro de vídeo
 - Números aparecem como dígitos na legenda mas são falados por extenso.
 - Chinês e japonês não têm espaço entre palavras: cada caractere é um token, então a busca é por sequência de caracteres. Fora do inglês o apóstrofo separa palavras (`l'homme` vira `l` + `homme`).
 - Pronúncia: o reconhecimento de voz é do navegador (no Chrome e no Edge o áudio vai para os servidores do fabricante). A comparação é por palavra: números falados por extenso e sotaques menos comuns podem ser reconhecidos errado.
+- A tradução é **automática** (a do YouTube): serve para entender a fala, mas pode errar, principalmente em expressões e gírias. Só português por enquanto.
+- A legenda de um vídeo inteiro vai de uma vez para o navegador (~60 KB para 18 minutos, comprimida pelo servidor); vídeos de horas ficariam pesados.
 - Os botões usam ícones em SVG de um sprite local (sem requisições externas), mas as miniaturas da lista vêm do YouTube.
 - O volume não passa de 100%: o player do YouTube roda em outro domínio e o navegador não deixa a página amplificar o áudio dele.
 - A biblioteca de legendas usa uma API não documentada do YouTube e pode parar de funcionar; por isso fica atrás da interface `LegendaProvider`.

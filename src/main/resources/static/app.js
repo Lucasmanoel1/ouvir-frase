@@ -1,11 +1,27 @@
 (() => {
   const $ = (id) => document.getElementById(id);
-  const form = $('form-busca'), campo = $('frase'), status = $('status'), secao = $('resultado');
+  const form = $('form-busca'), campo = $('frase'), status = $('status');
   const selo = $('selo'), legenda = $('legenda'), titulo = $('titulo'), contador = $('contador');
-  const btnAnterior = $('anterior'), btnProximo = $('proximo'), idiomaSel = $('idioma');
+  const lista = $('ocorrencias'), btnAnterior = $('anterior'), btnProximo = $('proximo');
+  const idiomaSel = $('idioma'), pilula = $('pilula-idioma');
+
+  const CHAVE_HISTORICO = 'ouvirfrase.historico';
+  const EXEMPLOS = { en: ['thank you very much', 'you know what', 'a lot of'] };
 
   let resultados = [], indice = 0, frase = '', idioma = 'en';
   let player = null, ytPronto = false, pendente = null;
+
+  const estado = (nome) => { document.body.dataset.estado = nome; };
+
+  function icone(nome) {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'ic');
+    svg.setAttribute('aria-hidden', 'true');
+    const uso = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+    uso.setAttribute('href', 'icons.svg#i-' + nome);
+    svg.append(uso);
+    return svg;
+  }
 
   // --- YouTube IFrame Player API ---
   window.onYouTubeIframeAPIReady = () => {
@@ -19,7 +35,7 @@
     if (!player) {
       player = new YT.Player('player', {
         videoId: r.youtubeId,
-        playerVars: { start: inicio, autoplay: 1, rel: 0, cc_load_policy: 0 },
+        playerVars: { start: inicio, autoplay: 1, rel: 0, cc_load_policy: 0, modestbranding: 1, iv_load_policy: 3, playsinline: 1 },
         events: { onStateChange: (e) => Ferramentas.aoMudarEstado(e.data) },
       });
     } else {
@@ -27,84 +43,175 @@
     }
   }
 
-  // --- Busca ---
+  function pausar() { if (player && player.pauseVideo) player.pauseVideo(); }
+
+  // --- status (buscando, vazio, erro) ---
+  function mostrarStatus(tipo, texto, detalhe) {
+    status.textContent = '';
+    if (tipo === 'buscando') {
+      const ondas = document.createElement('div');
+      ondas.className = 'ondas';
+      ondas.setAttribute('aria-hidden', 'true');
+      for (let i = 0; i < 5; i++) ondas.append(document.createElement('i'));
+      status.append(ondas);
+    } else {
+      status.append(icone(tipo === 'erro' ? 'warning' : 'magnifying-glass'));
+    }
+    const h = document.createElement('h2');
+    h.textContent = texto;
+    status.append(h);
+    if (detalhe) {
+      const p = document.createElement('p');
+      p.textContent = detalhe;
+      status.append(p);
+    }
+  }
+
+  // --- busca ---
   async function buscar(texto) {
     frase = texto.trim();
     if (!frase) return;
     history.replaceState(null, '', '?q=' + encodeURIComponent(frase) + '&l=' + encodeURIComponent(idioma));
-    status.textContent = 'Buscando…';
-    secao.hidden = true;
+    const mantemEstudio = document.body.dataset.estado === 'resultados';
+    if (mantemEstudio) {
+      document.body.classList.add('ocupado');
+    } else {
+      estado('buscando');
+      mostrarStatus('buscando', 'Buscando…');
+    }
+
+    let dados;
     try {
       const resp = await fetch('/api/busca?frase=' + encodeURIComponent(frase) + '&idioma=' + encodeURIComponent(idioma));
       if (!resp.ok) {
         const corpo = await resp.json().catch(() => ({}));
-        throw new Error(corpo.mensagem || 'Erro ao buscar. Tente novamente em instantes.');
+        throw new Error(corpo.mensagem || 'Não consegui buscar agora. Tente de novo em instantes.');
       }
-      const dados = await resp.json();
-      resultados = dados.resultados || [];
+      dados = await resp.json();
     } catch (e) {
-      status.textContent = e instanceof TypeError
-        ? 'Erro ao buscar. Tente novamente em instantes.'
-        : e.message;
+      document.body.classList.remove('ocupado');
+      pausar();
+      Ferramentas.trechoMudou(null);
+      estado('erro');
+      mostrarStatus('erro', 'Algo deu errado',
+        e instanceof TypeError ? 'Não consegui buscar agora. Tente de novo em instantes.' : e.message);
       return;
     }
+    document.body.classList.remove('ocupado');
+
+    resultados = dados.resultados || [];
     if (resultados.length === 0) {
-      status.textContent = 'Não encontrei essa frase nos vídeos indexados.';
-      if (player) player.pauseVideo();
+      pausar();
       Ferramentas.trechoMudou(null);
       Pronuncia.limpar();
+      estado('vazio');
+      mostrarStatus('vazio', 'Não encontrei essa frase', 'Tente menos palavras ou outro idioma.');
       return;
     }
-    status.textContent = '';
-    secao.hidden = false;
+
+    guardarHistorico(frase);
+    document.title = frase + ' · OuvirFrase';
+    estado('resultados');
     indice = 0;
+    montarLista();
     mostrar();
   }
 
-  // --- Exibição ---
+  // --- lista de ocorrências ---
+  function montarLista() {
+    lista.textContent = '';
+    resultados.forEach((r, i) => {
+      const li = document.createElement('li');
+      const botao = document.createElement('button');
+      botao.type = 'button';
+      botao.className = 'item';
+
+      const img = new Image();
+      img.className = 'thumb';
+      img.alt = '';
+      img.loading = 'lazy';
+      img.src = 'https://i.ytimg.com/vi/' + encodeURIComponent(r.youtubeId) + '/mqdefault.jpg';
+
+      const texto = document.createElement('span');
+      texto.className = 'item-texto';
+      const trecho = document.createElement('span');
+      trecho.className = 'item-legenda';
+      trecho.dir = 'auto';
+      renderLegenda(trecho, r.legenda || '');
+      const nome = document.createElement('span');
+      nome.className = 'item-titulo';
+      nome.textContent = r.titulo || '';
+      texto.append(trecho, nome);
+      botao.append(img, texto);
+
+      if (r.exata === false) {
+        const aprox = document.createElement('span');
+        aprox.className = 'selo-aprox';
+        aprox.title = 'Frase aproximada';
+        aprox.textContent = Math.round((r.pontuacao || 0) * 100) + '%';
+        botao.append(aprox);
+      }
+      botao.addEventListener('click', () => { indice = i; mostrar(); });
+      li.append(botao);
+      lista.append(li);
+    });
+  }
+
+  // --- exibição ---
   function mostrar() {
     const r = resultados[indice];
     tocar(r);
     Ferramentas.trechoMudou(r);
     Pronuncia.limpar();
+
     selo.hidden = r.exata !== false;
     selo.textContent = 'Frase aproximada · ' + Math.round((r.pontuacao || 0) * 100) + '% das palavras';
-    renderLegenda(r.legenda || '');
+    renderLegenda(legenda, r.legenda || '');
     titulo.textContent = r.titulo || '';
-    contador.textContent = (indice + 1) + ' / ' + resultados.length;
+    contador.textContent = (indice + 1) + ' de ' + resultados.length;
     btnAnterior.disabled = indice === 0;
     btnProximo.disabled = indice === resultados.length - 1;
+
+    lista.querySelectorAll('.item').forEach((el, i) => {
+      if (i === indice) {
+        el.setAttribute('aria-current', 'true');
+        // só rola a lista quando ela tem rolagem própria (desktop); no mobile a página não deve pular
+        if (getComputedStyle(lista).overflowY === 'auto') el.scrollIntoView({ block: 'nearest' });
+      } else {
+        el.removeAttribute('aria-current');
+      }
+    });
   }
 
   function escaparRegex(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 
   // Destaca a frase na legenda ignorando pontuação/caixa entre as palavras.
-  function renderLegenda(texto) {
-    legenda.textContent = '';
+  function renderLegenda(alvo, texto) {
+    alvo.textContent = '';
     const palavras = frase.toLowerCase().match(/[\p{L}\p{M}\p{N}]+(?:['’][\p{L}\p{M}\p{N}]+)*/gu) || [];
-    if (palavras.length === 0) { legenda.textContent = texto; return; }
+    if (palavras.length === 0) { alvo.textContent = texto; return; }
     const sep = "[^\\p{L}\\p{M}\\p{N}]+";
     const re = new RegExp(palavras.map((p) => escaparRegex(p).replace(/'/g, "['’]")).join(sep), 'iu');
     const m = re.exec(texto);
-    if (!m) { destacarPalavras(texto, palavras); return; }
+    if (!m) { destacarPalavras(alvo, texto, palavras); return; }
     const marca = document.createElement('mark');
     marca.textContent = m[0];
-    legenda.append(texto.slice(0, m.index), marca, texto.slice(m.index + m[0].length));
+    alvo.append(texto.slice(0, m.index), marca, texto.slice(m.index + m[0].length));
   }
 
   // Frase aproximada: não há trecho contínuo, então destaca cada palavra da frase que aparece.
-  function destacarPalavras(texto, palavras) {
+  function destacarPalavras(alvo, texto, palavras) {
     const alternativas = [...new Set(palavras)].map((p) => escaparRegex(p).replace(/'/g, "['’]")).join('|');
     const re = new RegExp("(?<![\\p{L}\\p{M}\\p{N}'’])(?:" + alternativas + ")(?![\\p{L}\\p{M}\\p{N}'’])", 'giu');
     let ultimo = 0;
     for (const m of texto.matchAll(re)) {
-      legenda.append(texto.slice(ultimo, m.index));
+      alvo.append(texto.slice(ultimo, m.index));
       const marca = document.createElement('mark');
       marca.textContent = m[0];
-      legenda.append(marca);
+      alvo.append(marca);
       ultimo = m.index + m[0].length;
     }
-    legenda.append(texto.slice(ultimo));
+    alvo.append(texto.slice(ultimo));
   }
 
   function navegar(delta) {
@@ -114,50 +221,130 @@
     mostrar();
   }
 
+  // --- histórico e exemplos ---
+  function lerHistorico() {
+    try {
+      const h = JSON.parse(localStorage.getItem(CHAVE_HISTORICO));
+      return Array.isArray(h) ? h.filter((x) => x && typeof x.f === 'string') : [];
+    } catch (e) { return []; }
+  }
+
+  function guardarHistorico(f) {
+    const outros = lerHistorico().filter((x) => !(x.l === idioma && x.f.toLowerCase() === f.toLowerCase()));
+    try { localStorage.setItem(CHAVE_HISTORICO, JSON.stringify([{ f, l: idioma }, ...outros].slice(0, 6))); } catch (e) { /* ignora */ }
+    renderChips();
+  }
+
+  function chip(texto, aoClicar) {
+    const botao = document.createElement('button');
+    botao.type = 'button';
+    botao.className = 'chip-btn';
+    botao.textContent = texto;
+    botao.addEventListener('click', aoClicar);
+    return botao;
+  }
+
+  function preencherChips(caixa, titulo, nomeIcone, botoes) {
+    caixa.textContent = '';
+    caixa.hidden = botoes.length === 0;
+    if (botoes.length === 0) return;
+    const rotulo = document.createElement('span');
+    rotulo.className = 'chips-titulo';
+    rotulo.append(icone(nomeIcone), titulo);
+    caixa.append(rotulo, ...botoes);
+  }
+
+  function renderChips() {
+    const exemplos = (EXEMPLOS[idioma] || []).map((t) => chip(t, () => { campo.value = t; buscar(t); }));
+    preencherChips($('exemplos'), 'Experimente', 'arrow-right', exemplos);
+
+    const historico = lerHistorico().map((x) => chip(x.f, () => {
+      if ([...idiomaSel.options].some((o) => o.value === x.l)) { idioma = x.l; idiomaSel.value = x.l; }
+      campo.value = x.f;
+      buscar(x.f);
+    }));
+    preencherChips($('historico'), 'Recentes', 'clock-counter-clockwise', historico);
+  }
+
+  // --- copiar link ---
+  async function copiarLink() {
+    try {
+      await navigator.clipboard.writeText(location.href);
+    } catch (e) {
+      const area = document.createElement('textarea');
+      area.value = location.href;
+      area.style.position = 'fixed';
+      area.style.opacity = '0';
+      document.body.append(area);
+      area.select();
+      let copiou = false;
+      try { copiou = document.execCommand('copy'); } catch (e2) { /* sem fallback */ }
+      area.remove();
+      if (!copiou) return;
+    }
+    $('ic-copiar').setAttribute('href', 'icons.svg#i-check');
+    $('copiar').title = 'Link copiado';
+    setTimeout(() => { $('ic-copiar').setAttribute('href', 'icons.svg#i-link'); $('copiar').title = 'Copiar link'; }, 1600);
+  }
+
   form.addEventListener('submit', (e) => { e.preventDefault(); buscar(campo.value); });
   btnAnterior.addEventListener('click', () => navegar(-1));
   btnProximo.addEventListener('click', () => navegar(1));
+  $('copiar').addEventListener('click', copiarLink);
   document.addEventListener('keydown', (e) => {
-    if (document.activeElement === campo || secao.hidden) return;
+    if (document.body.dataset.estado !== 'resultados') return;
+    if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
     if (e.key === 'ArrowLeft') navegar(-1);
     if (e.key === 'ArrowRight') navegar(1);
   });
 
-  // Seletor de idioma: aparece só quando há mais de um idioma indexado.
-  async function iniciar() {
-    const params = new URLSearchParams(location.search);
+  // --- idioma: sempre visível; vira botão (com seta) quando há mais de um idioma indexado ---
+  async function iniciarIdiomas(params) {
     try {
       const resp = await fetch('/api/idiomas');
-      const lista = resp.ok ? await resp.json() : [];
-      if (lista.length > 0) {
+      const codigos = resp.ok ? await resp.json() : [];
+      if (codigos.length > 0) {
         const pedido = params.get('l');
-        idioma = lista.includes(pedido) ? pedido : lista[0];
+        idioma = codigos.includes(pedido) ? pedido : codigos[0];
+        const local = navigator.language || 'pt-BR';
         let nomes = null;
-        try { nomes = new Intl.DisplayNames([navigator.language || 'pt-BR'], { type: 'language' }); } catch (e) { /* usa o código */ }
-        for (const codigo of lista) {
+        try { nomes = new Intl.DisplayNames([local], { type: 'language' }); } catch (e) { /* usa o código */ }
+        idiomaSel.textContent = '';
+        for (const codigo of codigos) {
           const opcao = document.createElement('option');
           opcao.value = codigo;
-          try { opcao.textContent = nomes ? nomes.of(codigo) : codigo; } catch (e) { opcao.textContent = codigo; }
+          let nome = codigo;
+          try { if (nomes) nome = nomes.of(codigo) || codigo; } catch (e) { /* usa o código */ }
+          opcao.textContent = nome.charAt(0).toLocaleUpperCase(local) + nome.slice(1);
           idiomaSel.append(opcao);
         }
         idiomaSel.value = idioma;
-        idiomaSel.hidden = lista.length < 2;
       }
-    } catch (e) { /* sem seletor: usa o idioma padrão */ }
+      const unico = codigos.length < 2;
+      idiomaSel.disabled = unico;
+      pilula.toggleAttribute('data-unico', unico);
+      pilula.title = unico ? 'Mais idiomas em breve' : 'Trocar o idioma da busca';
+    } catch (e) { /* mantém o idioma padrão */ }
+    renderChips();
+  }
 
+  async function iniciar() {
+    const params = new URLSearchParams(location.search);
     idiomaSel.addEventListener('change', () => {
       idioma = idiomaSel.value;
+      renderChips();
       if (campo.value.trim()) buscar(campo.value);
     });
-
+    await iniciarIdiomas(params);
     const q = params.get('q');
     if (q) { campo.value = q; buscar(q); }
   }
-  Ferramentas.iniciar({ getPlayer: () => player, secaoVisivel: () => !secao.hidden });
+
+  Ferramentas.iniciar({ getPlayer: () => player, estudoAberto: () => document.body.dataset.estado === 'resultados' });
   Pronuncia.iniciar({
     getAlvo: (tipo) => (tipo === 'trecho' ? (resultados[indice] || {}).legenda : frase),
     getIdioma: () => idioma,
-    pausar: () => { if (player && player.pauseVideo) player.pauseVideo(); },
+    pausar,
   });
   iniciar();
 })();

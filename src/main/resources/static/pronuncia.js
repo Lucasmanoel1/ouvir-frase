@@ -79,16 +79,19 @@ const Pronuncia = (() => {
     'network': 'Sem conexão com o serviço de voz do navegador.',
     'language-not-supported': 'O navegador não reconhece fala nesse idioma.',
   };
-
   const SEM_SUPORTE = 'Este navegador não tem reconhecimento de voz. Use o Chrome ou o Edge.';
 
-  let config = null, rec = null, ouvindo = false;
+  let config = null, rec = null, ouvindo = false, alvo = 'frase';
 
-  function mensagem(texto) { $('mic-status').textContent = texto; }
+  const dica = () => 'Toque no microfone e repita ' + (alvo === 'frase' ? 'a frase.' : 'o trecho.');
+  const mensagem = (texto) => { $('mic-status').textContent = texto; };
 
   function botaoParado() {
     ouvindo = false;
-    $('mic').textContent = '🎤 Falar';
+    $('mic').classList.remove('escutando');
+    $('ic-mic').setAttribute('href', 'icons.svg#i-microphone');
+    $('mic-texto').textContent = 'Falar';
+    $('mic').setAttribute('aria-label', 'Falar no microfone');
   }
 
   // Descarta qualquer reconhecimento em andamento (os handlers dele passam a ser ignorados).
@@ -98,7 +101,7 @@ const Pronuncia = (() => {
     if (antigo) { try { antigo.abort(); } catch (e) { /* já parou */ } }
     botaoParado();
     $('mic-resultado').hidden = true;
-    mensagem(SR ? '' : SEM_SUPORTE);
+    mensagem(SR ? dica() : SEM_SUPORTE);
   }
 
   function mostrarResultado(esperado, alternativas) {
@@ -116,7 +119,8 @@ const Pronuncia = (() => {
       const span = document.createElement('span');
       span.className = 'palavra ' + (p.ok ? 'ok' : 'falta');
       span.textContent = p.texto;
-      palavras.append(span, ' ');
+      span.title = p.ok ? 'Entendi' : 'Não entendi esta palavra';
+      palavras.append(span);
     }
     $('mic-ouvido').textContent = 'Entendi: "' + ouvido + '"';
     $('mic-resultado').hidden = false;
@@ -125,7 +129,7 @@ const Pronuncia = (() => {
 
   function ouvir() {
     if (ouvindo) { rec.stop(); return; }
-    const esperado = config.getAlvo($('alvo').value);
+    const esperado = config.getAlvo(alvo);
     if (tokens(esperado).length === 0) { mensagem('Não há o que repetir ainda. Faça uma busca primeiro.'); return; }
 
     config.pausar();
@@ -155,7 +159,10 @@ const Pronuncia = (() => {
     };
 
     ouvindo = true;
-    $('mic').textContent = '⏹ Parar';
+    $('mic').classList.add('escutando');
+    $('ic-mic').setAttribute('href', 'icons.svg#i-stop');
+    $('mic-texto').textContent = 'Parar';
+    $('mic').setAttribute('aria-label', 'Parar de gravar');
     mensagem('Ouvindo… fale agora.');
     try {
       minha.start();
@@ -165,14 +172,20 @@ const Pronuncia = (() => {
     }
   }
 
-  // opcoes: getAlvo(tipo) -> texto a repetir; getIdioma() -> código do idioma; pausar() -> pausa o vídeo
+  function definirAlvo(novo) {
+    alvo = novo;
+    $('alvo-frase').setAttribute('aria-pressed', String(novo === 'frase'));
+    $('alvo-trecho').setAttribute('aria-pressed', String(novo === 'trecho'));
+    limpar();
+  }
+
+  // config: getAlvo(tipo) -> texto a repetir; getIdioma() -> código do idioma; pausar() -> pausa o vídeo
   function iniciar(opcoes) {
     config = opcoes;
-    if (!SR) {
-      $('mic').disabled = true;
-      mensagem(SEM_SUPORTE);
-      return;
-    }
+    $('alvo-frase').addEventListener('click', () => definirAlvo('frase'));
+    $('alvo-trecho').addEventListener('click', () => definirAlvo('trecho'));
+    mensagem(SR ? dica() : SEM_SUPORTE);
+    if (!SR) { $('mic').disabled = true; return; }
     $('mic').addEventListener('click', ouvir);
   }
 

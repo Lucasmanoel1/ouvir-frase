@@ -46,7 +46,7 @@ public class IndexadorDeVideo {
         int ordem = 0;
 
         for (TrechoLegenda t : trechos) {
-            List<String> palavras = normalizador.tokenizar(t.texto());
+            List<String> palavras = normalizador.tokenizar(t.texto(), idioma);
             if (palavras.isEmpty()) {
                 continue;
             }

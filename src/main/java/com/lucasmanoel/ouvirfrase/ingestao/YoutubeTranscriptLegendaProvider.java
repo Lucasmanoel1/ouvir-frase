@@ -44,11 +44,32 @@ public class YoutubeTranscriptLegendaProvider implements LegendaProvider {
         return Optional.of(trechos);
     }
 
+    @Override
+    public Optional<List<TrechoLegenda>> buscarTraducao(String youtubeId, String idioma, String idiomaAlvo) {
+        TranscriptList disponiveis = listar(youtubeId);
+
+        Transcript traduzida;
+        try {
+            Transcript manual = disponiveis.findManualTranscript(idioma);
+            if (!manual.isTranslatable() || !manual.getTranslationLanguages().contains(idiomaAlvo)) {
+                log.warn("Vídeo [{}] não pode ser traduzido para '{}'", youtubeId, idiomaAlvo);
+                return Optional.empty();
+            }
+            traduzida = manual.translate(idiomaAlvo);
+        } catch (TranscriptRetrievalException e) {
+            log.warn("Vídeo [{}] sem tradução para '{}': {}", youtubeId, idiomaAlvo, e.getMessage());
+            return Optional.empty();
+        }
+
+        List<TrechoLegenda> trechos = converter(baixar(traduzida, youtubeId));
+        return trechos.isEmpty() ? Optional.empty() : Optional.of(trechos);
+    }
+
     private TranscriptList listar(String youtubeId) {
         try {
             return api.listTranscripts(youtubeId);
         } catch (TranscriptRetrievalException e) {
-            throw new FalhaNaBuscaDeLegendaException("Falha ao listar legendas de " + youtubeId, e);
+            throw new FalhaNaBuscaDeLegendaException("Falha ao listar legendas de " + youtubeId + ": " + e.getMessage(), e);
         }
     }
 
@@ -56,7 +77,7 @@ public class YoutubeTranscriptLegendaProvider implements LegendaProvider {
         try {
             return transcript.fetch();
         } catch (TranscriptRetrievalException e) {
-            throw new FalhaNaBuscaDeLegendaException("Falha ao baixar legenda de " + youtubeId, e);
+            throw new FalhaNaBuscaDeLegendaException("Falha ao baixar legenda de " + youtubeId + " (" + transcript.getLanguageCode() + "): " + e.getMessage(), e);
         }
     }
 

@@ -81,7 +81,7 @@ class VideoCsvReaderTest {
 
     @Test
     void deveLerOArquivoRealDeVideos() {
-        List<VideoSemente> videos = leitor.ler(Path.of("data/videos.csv"));
+        List<VideoSemente> videos = leitor.ler(Path.of("data/en/ted.csv"));
 
         assertThat(videos).isNotEmpty();
     }

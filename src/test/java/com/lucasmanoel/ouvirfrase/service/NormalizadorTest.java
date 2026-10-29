@@ -26,4 +26,18 @@ public class NormalizadorTest {
                 .containsExactly("hello", "world");
     }
 
+    @Test
+    void deveSepararCaracteresChinesesEManterPalavraLatina() {
+        // "eu gosto" em chinês (3 caracteres) + "apple"
+        assertThat(normalizador.tokenizar("\u6211\u559c\u6b22 apple", "zh-CN"))
+                .containsExactly("\u6211", "\u559c", "\u6b22", "apple");
+    }
+
+    @Test
+    void deveSepararApostrofoForaDoInglesEManterMarcasCombinadas() {
+        // "l'homme" em francês vira dois tokens; "hindi" em devanágari continua uma palavra só
+        assertThat(normalizador.tokenizar("L'homme \u0939\u093f\u0928\u094d\u0926\u0940", "fr"))
+                .containsExactly("l", "homme", "\u0939\u093f\u0928\u094d\u0926\u0940");
+    }
+
 }

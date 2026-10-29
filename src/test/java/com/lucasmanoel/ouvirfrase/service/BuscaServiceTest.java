@@ -46,7 +46,7 @@ class BuscaServiceTest {
 
     @Test
     void deveAcharFraseQueCruzaDoisTrechosComRecuoDeTresSegundos() {
-        RespostaBusca resposta = buscaService.buscar("Love THIS idea!");
+        RespostaBusca resposta = buscaService.buscar("Love THIS idea!", "en");
 
         assertThat(resposta.resultados()).hasSize(1);
         assertThat(resposta.resultados().get(0).youtubeId()).isEqualTo("abc123");
@@ -56,7 +56,7 @@ class BuscaServiceTest {
 
     @Test
     void deveEncontrarPalavrasNaOrdemMesmoComGaps() {
-        assertThat(buscaService.buscar("i love").resultados())
+        assertThat(buscaService.buscar("i love", "en").resultados())
                 .extracting(ResultadoBusca::legenda)
                 .contains("I really love");
     }

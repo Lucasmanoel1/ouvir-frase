@@ -24,7 +24,7 @@ class BuscaControllerTest {
 
     @Test
     void deveDevolverOContratoDaApi() throws Exception {
-        when(buscaService.buscar("hello world")).thenReturn(new RespostaBusca(List.of(
+        when(buscaService.buscar("hello world", "en")).thenReturn(new RespostaBusca(List.of(
                 new ResultadoBusca("abc123XYZ_-", "Titulo", 9.0, "well hello world", 1.0, true))));
 
         mockMvc.perform(get("/api/busca").param("frase", "hello world"))

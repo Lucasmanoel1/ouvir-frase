@@ -1,7 +1,7 @@
 (() => {
   const $ = (id) => document.getElementById(id);
   const form = $('form-busca'), campo = $('frase'), status = $('status'), secao = $('resultado');
-  const legenda = $('legenda'), titulo = $('titulo'), contador = $('contador');
+  const selo = $('selo'), legenda = $('legenda'), titulo = $('titulo'), contador = $('contador');
   const btnAnterior = $('anterior'), btnProximo = $('proximo');
 
   let resultados = [], indice = 0, frase = '';
@@ -62,6 +62,8 @@
   function mostrar() {
     const r = resultados[indice];
     tocar(r);
+    selo.hidden = r.exata !== false;
+    selo.textContent = 'Frase aproximada · ' + Math.round((r.pontuacao || 0) * 100) + '% das palavras';
     renderLegenda(r.legenda || '');
     titulo.textContent = r.titulo || '';
     contador.textContent = (indice + 1) + ' / ' + resultados.length;
@@ -79,10 +81,25 @@
     const sep = "[^\\p{L}\\p{N}]+";
     const re = new RegExp(palavras.map((p) => escaparRegex(p).replace(/'/g, "['’]")).join(sep), 'iu');
     const m = re.exec(texto);
-    if (!m) { legenda.textContent = texto; return; }
+    if (!m) { destacarPalavras(texto, palavras); return; }
     const marca = document.createElement('mark');
     marca.textContent = m[0];
     legenda.append(texto.slice(0, m.index), marca, texto.slice(m.index + m[0].length));
+  }
+
+  // Frase aproximada: não há trecho contínuo, então destaca cada palavra da frase que aparece.
+  function destacarPalavras(texto, palavras) {
+    const alternativas = [...new Set(palavras)].map((p) => escaparRegex(p).replace(/'/g, "['’]")).join('|');
+    const re = new RegExp("(?<![\\p{L}\\p{N}'’])(?:" + alternativas + ")(?![\\p{L}\\p{N}'’])", 'giu');
+    let ultimo = 0;
+    for (const m of texto.matchAll(re)) {
+      legenda.append(texto.slice(ultimo, m.index));
+      const marca = document.createElement('mark');
+      marca.textContent = m[0];
+      legenda.append(marca);
+      ultimo = m.index + m[0].length;
+    }
+    legenda.append(texto.slice(ultimo));
   }
 
   function navegar(delta) {

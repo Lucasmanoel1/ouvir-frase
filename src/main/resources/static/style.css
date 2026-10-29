@@ -15,6 +15,8 @@ main { max-width:860px; margin:0 auto; padding:0 16px 48px; }
 #player-wrap iframe, #player { position:absolute; inset:0; width:100%; height:100%; }
 #legenda { margin:20px 0 6px; padding:16px; background:var(--card); border-radius:10px; font-size:1.3rem; line-height:1.5; text-align:center; }
 #legenda mark { background:transparent; color:var(--destaque); font-weight:700; }
+#selo { margin:16px 0 0; text-align:center; font-size:.85rem; color:var(--suave); }
+#selo::before { content:"≈ "; }
 #titulo { margin:0 0 16px; color:var(--suave); font-size:.9rem; text-align:center; }
 nav { display:flex; align-items:center; justify-content:center; gap:16px; }
 #contador { color:var(--suave); min-width:90px; text-align:center; }

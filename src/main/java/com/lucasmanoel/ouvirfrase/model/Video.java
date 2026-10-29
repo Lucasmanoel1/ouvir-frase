@@ -19,4 +19,5 @@ public class Video {
     private String titulo;
     private String idioma;
     private String canal;
+    private String traducaoIdioma;
 }

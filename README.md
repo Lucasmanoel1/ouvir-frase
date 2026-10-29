@@ -6,7 +6,7 @@ Clone do [YouGlish](https://youglish.com) para treinar escuta em inglês: digite
 
 ## Como funciona
 
-1. **Ingestão (offline):** uma lista curada de vídeos (`data/videos.csv`) é filtrada (só vídeos incorporáveis), a legenda manual em inglês é baixada, normalizada e gravada em um **índice invertido**.
+1. **Ingestão (offline):** listas curadas de vídeos (`data/<idioma>/<canal>.csv`) são filtradas (só vídeos incorporáveis), a legenda manual em inglês é baixada, normalizada e gravada em um **índice invertido**.
 2. **Busca (online):** a frase digitada passa pela mesma normalização e é procurada no índice. O usuário nunca consulta o YouTube: a busca lê só o banco.
 3. **Front:** uma página estática que toca o vídeo (YouTube IFrame Player API) 3 segundos antes da frase e destaca a frase na legenda.
 
@@ -44,8 +44,13 @@ As migrações do Flyway rodam na subida. O banco começa vazio: é preciso roda
    ```
    YOUTUBE_API_KEY=sua-chave
    ```
-2. Edite `data/videos.csv` (`youtube_id,idioma,titulo`; linhas com `#` são comentário).
-3. Rode:
+2. Os vídeos ficam em `data/<idioma>/<canal>.csv` (por exemplo `data/en/ted.csv`), com as colunas `youtube_id,idioma,titulo`. A coluna `idioma` precisa bater com a pasta; o nome do arquivo vira o canal do vídeo. Linhas com `#` são comentário.
+   Para **descobrir** os vídeos de um canal em vez de montar a lista à mão:
+   ```bash
+   ./mvnw spring-boot:run -Dspring-boot.run.profiles=ingestao "-Dspring-boot.run.arguments=--canal=@TED --idioma=en --max=100"
+   ```
+   Isso só grava/atualiza `data/en/ted.csv` (vídeos com legenda, 60 s ou mais, ainda não conhecidos); revise o arquivo antes de indexar.
+3. Indexe:
    ```bash
    ./mvnw spring-boot:run -Dspring-boot.run.profiles=ingestao
    ```
@@ -53,6 +58,7 @@ As migrações do Flyway rodam na subida. O banco começa vazio: é preciso roda
 - Vídeos já indexados são pulados, então rodar de novo não duplica nada.
 - Problema do vídeo (não incorporável, sem legenda manual) → descarta com motivo e segue. Falha de infraestrutura (chave inválida, cota, **bloqueio de IP pelo YouTube**) → para tudo. Basta esperar e rodar de novo.
 - O YouTube bloqueia IPs que fazem muitas requisições. Aumente a pausa entre vídeos se necessário: `-Dspring-boot.run.arguments=--ingestao.pausa-ms=6000`.
+- `--ingestao.limite=N` processa no máximo N vídeos por execução (o resto aparece como "adiados"). Se o YouTube bloquear o IP no meio, o relatório parcial é impresso antes de sair com erro.
 - Ao final é impresso um relatório: quantos entraram, quantos já existiam e quantos foram descartados (e por quê).
 
 ### API

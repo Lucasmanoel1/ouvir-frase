@@ -18,4 +18,5 @@ public class Video {
     private String youtubeId;
     private String titulo;
     private String idioma;
+    private String canal;
 }

@@ -54,6 +54,7 @@ class BuscaAproximadaTest {
         assertThat(r.exata()).isFalse();
         assertThat(r.pontuacao()).isEqualTo(0.8, within(1e-9));
         assertThat(r.inicioSeg()).isEqualTo(7.0, within(0.001));
+        assertThat(r.fimSeg()).isEqualTo(15.0, within(0.001));
         assertThat(r.legenda()).contains("I really love this wonderful idea");
     }
 }

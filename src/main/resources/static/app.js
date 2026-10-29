@@ -20,6 +20,7 @@
       player = new YT.Player('player', {
         videoId: r.youtubeId,
         playerVars: { start: inicio, autoplay: 1, rel: 0, cc_load_policy: 0 },
+        events: { onStateChange: (e) => Ferramentas.aoMudarEstado(e.data) },
       });
     } else {
       player.loadVideoById({ videoId: r.youtubeId, startSeconds: inicio });
@@ -50,6 +51,8 @@
     if (resultados.length === 0) {
       status.textContent = 'Não encontrei essa frase nos vídeos indexados.';
       if (player) player.pauseVideo();
+      Ferramentas.trechoMudou(null);
+      Pronuncia.limpar();
       return;
     }
     status.textContent = '';
@@ -62,6 +65,8 @@
   function mostrar() {
     const r = resultados[indice];
     tocar(r);
+    Ferramentas.trechoMudou(r);
+    Pronuncia.limpar();
     selo.hidden = r.exata !== false;
     selo.textContent = 'Frase aproximada · ' + Math.round((r.pontuacao || 0) * 100) + '% das palavras';
     renderLegenda(r.legenda || '');
@@ -148,5 +153,11 @@
     const q = params.get('q');
     if (q) { campo.value = q; buscar(q); }
   }
+  Ferramentas.iniciar({ getPlayer: () => player, secaoVisivel: () => !secao.hidden });
+  Pronuncia.iniciar({
+    getAlvo: (tipo) => (tipo === 'trecho' ? (resultados[indice] || {}).legenda : frase),
+    getIdioma: () => idioma,
+    pausar: () => { if (player && player.pauseVideo) player.pauseVideo(); },
+  });
   iniciar();
 })();

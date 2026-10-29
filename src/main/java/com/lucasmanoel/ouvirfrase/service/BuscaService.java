@@ -32,27 +32,27 @@ public class BuscaService {
 
     /** Primeiro as frases exatas; se sobrar espaço, as aproximadas (>= 70% das palavras, na ordem). */
     @Transactional(readOnly = true)
-    public RespostaBusca buscar(String frase) {
-        List<String> palavras = normalizador.tokenizar(frase);
+    public RespostaBusca buscar(String frase, String idioma) {
+        List<String> palavras = normalizador.tokenizar(frase, idioma);
         if (palavras.isEmpty()) {
             return new RespostaBusca(List.of());
         }
 
-        List<ResultadoBusca> resultados = new ArrayList<>(exatos(palavras));
+        List<ResultadoBusca> resultados = new ArrayList<>(exatos(palavras, idioma));
         if (palavras.size() >= 2 && resultados.size() < LIMITE_RESULTADOS) {
-            resultados.addAll(aproximados(palavras, LIMITE_RESULTADOS - resultados.size()));
+            resultados.addAll(aproximados(palavras, idioma, LIMITE_RESULTADOS - resultados.size()));
         }
         return new RespostaBusca(resultados);
     }
 
-    private List<ResultadoBusca> exatos(List<String> palavras) {
-        return buscaRepository.buscarSequencia(palavras, LIMITE_RESULTADOS).stream()
+    private List<ResultadoBusca> exatos(List<String> palavras, String idioma) {
+        return buscaRepository.buscarSequencia(palavras, idioma, LIMITE_RESULTADOS).stream()
                 .map(a -> new ResultadoBusca(a.youtubeId(), a.titulo(),
                         Math.max(0.0, a.inicioSeg() - RECUO_SEG), a.legenda(), 1.0, true))
                 .toList();
     }
 
-    private List<ResultadoBusca> aproximados(List<String> palavras, int limite) {
+    private List<ResultadoBusca> aproximados(List<String> palavras, String idioma, int limite) {
         int n = palavras.size();
         List<String> distintas = palavras.stream().distinct().toList();
         // o vídeo pode perder no máximo (n - mínimo) palavras, então precisa ter quase todas as distintas
@@ -60,7 +60,7 @@ public class BuscaService {
 
         Map<Long, List<CasadorPorLacunas.Candidata>> porVideo = new LinkedHashMap<>();
         for (BuscaRepository.OcorrenciaCandidata o
-                : buscaRepository.buscarCandidatas(distintas, distintasMinimas, LIMITE_CANDIDATAS)) {
+                : buscaRepository.buscarCandidatas(distintas, idioma, distintasMinimas, LIMITE_CANDIDATAS)) {
             porVideo.computeIfAbsent(o.videoId(), k -> new ArrayList<>())
                     .add(new CasadorPorLacunas.Candidata(o.palavra(), o.posicao(), o.trechoId(), o.inicioSeg()));
         }
@@ -94,5 +94,11 @@ public class BuscaService {
             return new ResultadoBusca(v.getYoutubeId(), v.getTitulo(),
                     Math.max(0.0, c.primeira().inicioSeg() - RECUO_SEG), legenda, c.score(), false);
         }).toList();
+    }
+
+    /** Idiomas com vídeos indexados, do que tem mais vídeos para o que tem menos. */
+    @Transactional(readOnly = true)
+    public List<String> idiomas() {
+        return videoRepository.idiomasDisponiveis();
     }
 }

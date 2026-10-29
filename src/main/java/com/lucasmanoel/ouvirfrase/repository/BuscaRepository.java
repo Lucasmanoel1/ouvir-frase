@@ -28,7 +28,7 @@ public class BuscaRepository {
     }
 
     @SuppressWarnings("unchecked")
-    public List<Acerto> buscarSequencia(List<String> palavras, int limite) {
+    public List<Acerto> buscarSequencia(List<String> palavras, String idioma, int limite) {
         int n = palavras.size();
 
         StringBuilder sql = new StringBuilder();
@@ -47,7 +47,7 @@ public class BuscaRepository {
         sql.append("JOIN trecho t1 ON t1.id = o1.trecho_id ")
            .append("JOIN trecho tf ON tf.id = o").append(n).append(".trecho_id ")
            .append("JOIN video v ON v.id = o1.video_id ")
-           .append("WHERE o1.palavra = ?1) q ")
+           .append("WHERE o1.palavra = ?1 AND v.idioma = ?").append(n + 1).append(") q ")
            .append("WHERE q.rn <= ").append(MAX_POR_VIDEO).append(' ')
            .append("ORDER BY q.rn, q.video_id, q.posicao");
 
@@ -55,6 +55,7 @@ public class BuscaRepository {
         for (int k = 1; k <= n; k++) {
             query.setParameter(k, palavras.get(k - 1));
         }
+        query.setParameter(n + 1, idioma);
         query.setMaxResults(limite);
 
         return ((List<Object[]>) query.getResultList()).stream()
@@ -71,14 +72,17 @@ public class BuscaRepository {
      * 'limite' protege contra palavras muito comuns (o corte descarta os últimos vídeos).
      */
     @SuppressWarnings("unchecked")
-    public List<OcorrenciaCandidata> buscarCandidatas(List<String> palavras, int distintasMinimas, int limite) {
+    public List<OcorrenciaCandidata> buscarCandidatas(List<String> palavras, String idioma,
+                                                      int distintasMinimas, int limite) {
         String sql = "SELECT o.video_id, o.palavra, o.posicao, o.trecho_id, o.inicio_seg FROM ocorrencia o "
-                + "WHERE o.palavra IN (:palavras) AND o.video_id IN ("
+                + "WHERE o.palavra IN (:palavras) AND o.video_id IN (SELECT id FROM video WHERE idioma = :idioma) AND o.video_id IN ("
                 + "SELECT c.video_id FROM ocorrencia c WHERE c.palavra IN (:palavras) "
+                + "AND c.video_id IN (SELECT id FROM video WHERE idioma = :idioma) "
                 + "GROUP BY c.video_id HAVING count(DISTINCT c.palavra) >= " + distintasMinimas + ") "
                 + "ORDER BY o.video_id, o.posicao";
         Query query = em.createNativeQuery(sql);
         query.setParameter("palavras", palavras);
+        query.setParameter("idioma", idioma);
         query.setMaxResults(limite);
 
         return ((List<Object[]>) query.getResultList()).stream()

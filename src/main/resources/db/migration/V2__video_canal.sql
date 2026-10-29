@@ -1,0 +1,1 @@
+ALTER TABLE video ADD COLUMN canal VARCHAR(100);

@@ -48,7 +48,7 @@ public class BuscaService {
     private List<ResultadoBusca> exatos(List<String> palavras, String idioma) {
         return buscaRepository.buscarSequencia(palavras, idioma, LIMITE_RESULTADOS).stream()
                 .map(a -> new ResultadoBusca(a.youtubeId(), a.titulo(),
-                        Math.max(0.0, a.inicioSeg() - RECUO_SEG), a.legenda(), 1.0, true))
+                        Math.max(0.0, a.inicioSeg() - RECUO_SEG), a.fimSeg(), a.legenda(), 1.0, true))
                 .toList();
     }
 
@@ -92,7 +92,8 @@ public class BuscaService {
             Video v = videos.get(a.videoId());
             String legenda = buscaRepository.legenda(a.videoId(), c.primeira().trechoId(), c.ultima().trechoId());
             return new ResultadoBusca(v.getYoutubeId(), v.getTitulo(),
-                    Math.max(0.0, c.primeira().inicioSeg() - RECUO_SEG), legenda, c.score(), false);
+                    Math.max(0.0, c.primeira().inicioSeg() - RECUO_SEG),
+                    buscaRepository.fimDoTrecho(c.ultima().trechoId()), legenda, c.score(), false);
         }).toList();
     }
 

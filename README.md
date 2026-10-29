@@ -71,12 +71,17 @@ Uma pasta por idioma em `data/`: `en`, `es`, `fr`, `de`, `it`, `ja`, `ko`, `zh-C
 
 ```json
 { "resultados": [
-  { "youtubeId": "abc123XYZ_-", "titulo": "…", "inicioSeg": 12.4, "legenda": "texto do trecho",
+  { "youtubeId": "abc123XYZ_-", "titulo": "…", "inicioSeg": 12.4, "fimSeg": 18.0, "legenda": "texto do trecho",
     "pontuacao": 1.0, "exata": true }
 ] }
 ```
 
-`inicioSeg` já vem com 3 s de antecedência. As frases exatas vêm primeiro (`exata: true`); depois as aproximadas, com `pontuacao` = palavras casadas / total (mínimo 0,7). Sem resultado: `resultados` vazio. Frase vazia ou com mais de 200 caracteres: `400`.
+`inicioSeg` já vem com 3 s de antecedência; `fimSeg` é onde termina o último trecho da legenda (o front usa para o loop). As frases exatas vêm primeiro (`exata: true`); depois as aproximadas, com `pontuacao` = palavras casadas / total (mínimo 0,7). Sem resultado: `resultados` vazio. Frase vazia ou com mais de 200 caracteres: `400`.
+
+## Ferramentas de estudo (front)
+
+- **Menu "Ferramentas do player"**: loop do trecho (volta ao início quando chega no fim), velocidade de 0,25× a 1,5× (lembrada no navegador), voltar/avançar 2 s e "início do trecho". Atalhos: `L` loop, `R` início do trecho, `,` e `.` ±2 s, `[` e `]` velocidade.
+- **Pronúncia**: o usuário repete a frase buscada (ou o trecho inteiro) no microfone; o navegador reconhece a fala (Web Speech API) e a página compara palavra por palavra, mostrando a porcentagem e as palavras que faltaram. Não há nada no servidor. Só funciona no Chrome e no Edge e exige HTTPS fora do `localhost`.
 
 ## Testes
 
@@ -98,15 +103,17 @@ src/main/resources/static/   # front (HTML/CSS/JS puro)
 ## Limitações conhecidas
 
 - O YouTube não informa o tempo de cada palavra: o início é **estimado** dentro do trecho (distribuição uniforme). O recuo de 3 s cobre a imprecisão. Nos trechos mais longos o erro é maior.
-- Só legendas **manuais** em inglês; vídeo sem legenda manual não entra.
+- Só legendas **manuais**; vídeo sem legenda manual não entra.
 - A busca tem dois níveis: **exata** (frase inteira, em sequência, no mesmo vídeo) e **aproximada** (≥ 70% das palavras na ordem, dentro de uma janela de 2× o tamanho da frase; só para frases de 2+ palavras). Máximo de 2 resultados por vídeo e 50 no total. O ranking é simples: exatas, depois mais palavras casadas, depois trecho mais compacto.
 - Na busca aproximada, palavras muito comuns geram muitos candidatos; há um teto de 20.000 linhas por busca.
 - Acento não é removido (`cafe` ≠ `café`) e `dont` não casa com `don't`.
 - Números aparecem como dígitos na legenda mas são falados por extenso.
 - Chinês e japonês não têm espaço entre palavras: cada caractere é um token, então a busca é por sequência de caracteres. Fora do inglês o apóstrofo separa palavras (`l'homme` vira `l` + `homme`).
+- Pronúncia: o reconhecimento de voz é do navegador (no Chrome e no Edge o áudio vai para os servidores do fabricante). A comparação é por palavra: números falados por extenso e sotaques menos comuns podem ser reconhecidos errado.
+- O volume não passa de 100%: o player do YouTube roda em outro domínio e o navegador não deixa a página amplificar o áudio dele.
 - A biblioteca de legendas usa uma API não documentada do YouTube e pode parar de funcionar; por isso fica atrás da interface `LegendaProvider`.
 - `embeddable=true` não garante que o vídeo toque em todos os países.
 
 ## Próximos passos (pós-MVP)
 
-Automação da seleção de vídeos · front mais elaborado · pronúncia, quiz, flashcards · deploy.
+Front mais elaborado · quiz e flashcards (exigem login) · deploy.

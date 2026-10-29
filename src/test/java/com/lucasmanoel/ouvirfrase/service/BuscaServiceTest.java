@@ -51,6 +51,7 @@ class BuscaServiceTest {
         assertThat(resposta.resultados()).hasSize(1);
         assertThat(resposta.resultados().get(0).youtubeId()).isEqualTo("abc123");
         assertThat(resposta.resultados().get(0).inicioSeg()).isEqualTo(9.0, within(0.001));
+        assertThat(resposta.resultados().get(0).fimSeg()).isEqualTo(15.0, within(0.001));
         assertThat(resposta.resultados().get(0).legenda()).contains("I really love this idea");
     }
 

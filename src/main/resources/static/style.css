@@ -1,4 +1,4 @@
-:root { --bg:#0f1115; --card:#181b22; --texto:#e8eaed; --suave:#9aa0a6; --destaque:#ffd54a; --acao:#3b82f6; }
+:root { --bg:#0f1115; --card:#181b22; --texto:#e8eaed; --suave:#9aa0a6; --destaque:#ffd54a; --acao:#3b82f6; --ok:#4ade80; --erro:#f87171; --borda:#2c313c; }
 * { box-sizing: border-box; }
 body { margin:0; background:var(--bg); color:var(--texto); font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
 header { max-width:860px; margin:0 auto; padding:32px 16px 16px; text-align:center; }
@@ -21,4 +21,23 @@ main { max-width:860px; margin:0 auto; padding:0 16px 48px; }
 nav { display:flex; align-items:center; justify-content:center; gap:16px; }
 #contador { color:var(--suave); min-width:90px; text-align:center; }
 @media (max-width:480px) { #legenda { font-size:1.1rem; } }
-#idioma { padding:12px 10px; font-size:1rem; border-radius:8px; border:1px solid #2c313c; background:var(--card); color:var(--texto); max-width:9rem; }
+#idioma, #alvo { padding:12px 10px; font-size:1rem; border-radius:8px; border:1px solid #2c313c; background:var(--card); color:var(--texto); max-width:9rem; }
+
+/* Menus recolhíveis: ferramentas do player e pronúncia */
+.menu { margin:12px 0; background:var(--card); border:1px solid var(--borda); border-radius:10px; }
+.menu summary { padding:12px 16px; cursor:pointer; user-select:none; }
+.painel { padding:4px 16px 16px; }
+.linha { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:10px; }
+.rotulo { color:var(--suave); min-width:5.5rem; }
+.chips { display:flex; flex-wrap:wrap; gap:6px; }
+button.sec, button.chip { background:transparent; color:var(--texto); border:1px solid var(--borda); }
+button.chip { padding:6px 12px; font-size:.9rem; }
+button.sec[aria-pressed="true"], button.chip[aria-pressed="true"] { background:var(--acao); border-color:var(--acao); color:#fff; }
+.dica { margin:12px 0 0; color:var(--suave); font-size:.8rem; line-height:1.4; }
+#mic-status { margin:10px 0 0; color:var(--suave); min-height:1.2em; }
+#mic-nota { margin:12px 0 4px; font-size:1.3rem; font-weight:700; }
+#mic-palavras { margin:0; font-size:1.2rem; line-height:1.8; }
+.palavra.ok { color:var(--ok); }
+.palavra.falta { color:var(--erro); text-decoration:underline; }
+#mic-ouvido { margin:4px 0 0; color:var(--suave); font-size:.9rem; }
+#alvo { max-width:none; flex:1; min-width:12rem; }

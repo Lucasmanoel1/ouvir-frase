@@ -35,11 +35,16 @@
     secao.hidden = true;
     try {
       const resp = await fetch('/api/busca?frase=' + encodeURIComponent(frase));
-      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      if (!resp.ok) {
+        const corpo = await resp.json().catch(() => ({}));
+        throw new Error(corpo.mensagem || 'Erro ao buscar. Tente novamente em instantes.');
+      }
       const dados = await resp.json();
       resultados = dados.resultados || [];
     } catch (e) {
-      status.textContent = 'Erro ao buscar. Tente novamente em instantes.';
+      status.textContent = e instanceof TypeError
+        ? 'Erro ao buscar. Tente novamente em instantes.'
+        : e.message;
       return;
     }
     if (resultados.length === 0) {

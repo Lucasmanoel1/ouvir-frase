@@ -1,6 +1,7 @@
 package com.lucasmanoel.ouvirfrase.service;
 
 import com.lucasmanoel.ouvirfrase.dto.RespostaBusca;
+import com.lucasmanoel.ouvirfrase.dto.ResultadoBusca;
 import com.lucasmanoel.ouvirfrase.dto.TrechoLegenda;
 import com.lucasmanoel.ouvirfrase.repository.OcorrenciaRepository;
 import com.lucasmanoel.ouvirfrase.repository.TrechoRepository;
@@ -54,8 +55,9 @@ class BuscaServiceTest {
     }
 
     @Test
-    void naoDeveAcharPalavrasForaDeOrdemOuNaoConsecutivas() {
-        assertThat(buscaService.buscar("idea this").resultados()).isEmpty();
-        assertThat(buscaService.buscar("i love").resultados()).isEmpty();
+    void deveEncontrarPalavrasNaOrdemMesmoComGaps() {
+        assertThat(buscaService.buscar("i love").resultados())
+                .extracting(ResultadoBusca::legenda)
+                .contains("I really love");
     }
 }

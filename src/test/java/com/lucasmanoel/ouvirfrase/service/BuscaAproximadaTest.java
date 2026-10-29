@@ -47,7 +47,7 @@ class BuscaAproximadaTest {
     @Test
     void deveAcharComoAproximadaQuandoUmaPalavraDaFraseNaoExisteNoVideo() {
         // "adore" não existe no vídeo: 4 de 5 palavras (80%), na ordem, cruzando dois trechos
-        RespostaBusca resposta = buscaService.buscar("I really adore this idea");
+        RespostaBusca resposta = buscaService.buscar("I really adore this idea", "en");
 
         assertThat(resposta.resultados()).hasSize(1);
         ResultadoBusca r = resposta.resultados().get(0);

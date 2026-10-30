@@ -27,18 +27,19 @@ public class IndexadorDeVideo {
     @Transactional
     public int indexar(String youtubeId, String titulo, String idioma,
                        List<TrechoLegenda> trechos) {
-        return indexar(youtubeId, titulo, idioma, null, trechos);
+        return indexar(youtubeId, titulo, idioma, null, trechos, false);
     }
 
     @Transactional
     public int indexar(String youtubeId, String titulo, String idioma, String canal,
-                       List<TrechoLegenda> trechos) {
+                       List<TrechoLegenda> trechos, boolean legendaAutomatica) {
 
         Video video = new Video();
         video.setYoutubeId(youtubeId);
         video.setTitulo(titulo);
         video.setIdioma(idioma);
         video.setCanal(canal);
+        video.setLegendaAutomatica(legendaAutomatica);
         video = videoRepository.save(video);
 
         List<Ocorrencia> ocorrencias = new ArrayList<>();

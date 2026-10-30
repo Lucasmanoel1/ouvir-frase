@@ -18,6 +18,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.assertj.core.api.Assertions.within;
 
 @SpringBootTest
@@ -53,6 +54,20 @@ class BuscaServiceTest {
         assertThat(resposta.resultados().get(0).inicioSeg()).isEqualTo(9.0, within(0.001));
         assertThat(resposta.resultados().get(0).fimSeg()).isEqualTo(15.0, within(0.001));
         assertThat(resposta.resultados().get(0).legenda()).contains("I really love this idea");
+    }
+
+    @Test
+    void deveMostrarLegendaManualAntesDaAutomatica() {
+        var automatico = videoRepository.findByYoutubeId("abc123").orElseThrow();
+        automatico.setLegendaAutomatica(true);
+        videoRepository.save(automatico);
+        indexador.indexar("manu01", "Video manual", "en", null, List.of(
+                new TrechoLegenda("I really love", 10.0, 3.0),
+                new TrechoLegenda("this idea", 13.0, 2.0)), false);
+
+        assertThat(buscaService.buscar("really love", "en").resultados())
+                .extracting(ResultadoBusca::youtubeId, ResultadoBusca::legendaAutomatica)
+                .containsExactly(tuple("manu01", false), tuple("abc123", true));
     }
 
     @Test

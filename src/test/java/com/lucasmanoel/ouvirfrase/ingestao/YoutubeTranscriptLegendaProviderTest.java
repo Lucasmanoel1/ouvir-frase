@@ -45,18 +45,34 @@ class YoutubeTranscriptLegendaProviderTest {
         when(lista.findManualTranscript("en")).thenReturn(transcript);
         when(transcript.fetch()).thenReturn(conteudo);
 
-        Optional<List<TrechoLegenda>> resultado = provider.buscar(ID, "en");
+        Optional<LegendaBaixada> resultado = provider.buscar(ID, "en");
 
-        assertThat(resultado).contains(List.of(
+        assertThat(resultado).contains(new LegendaBaixada(List.of(
                 new TrechoLegenda("hello world", 1.5, 2.0),
-                new TrechoLegenda("how are you", 3.5, 1.0)));
+                new TrechoLegenda("how are you", 3.5, 1.0)), false));
     }
 
     @Test
-    void deveDevolverVazioQuandoNaoHaLegendaManual() throws Exception {
+    void deveCairParaALegendaAutomaticaQuandoNaoHaManual() throws Exception {
+        TranscriptContent conteudo = new TranscriptContent(List.of(
+                new TranscriptContent.Fragment("hello world", 1.5, 2.0)));
         when(api.listTranscripts(ID)).thenReturn(lista);
         when(lista.findManualTranscript("en"))
                 .thenThrow(new TranscriptRetrievalException(ID, "sem legenda manual"));
+        when(lista.findGeneratedTranscript("en")).thenReturn(transcript);
+        when(transcript.fetch()).thenReturn(conteudo);
+
+        assertThat(provider.buscar(ID, "en")).contains(
+                new LegendaBaixada(List.of(new TrechoLegenda("hello world", 1.5, 2.0)), true));
+    }
+
+    @Test
+    void deveDevolverVazioQuandoNaoHaLegendaManualNemAutomatica() throws Exception {
+        when(api.listTranscripts(ID)).thenReturn(lista);
+        when(lista.findManualTranscript("en"))
+                .thenThrow(new TranscriptRetrievalException(ID, "sem legenda manual"));
+        when(lista.findGeneratedTranscript("en"))
+                .thenThrow(new TranscriptRetrievalException(ID, "sem legenda automatica"));
 
         assertThat(provider.buscar(ID, "en")).isEmpty();
     }

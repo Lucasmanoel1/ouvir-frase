@@ -25,23 +25,30 @@ public class YoutubeTranscriptLegendaProvider implements LegendaProvider {
     private final YoutubeTranscriptApi api;
 
     @Override
-    public Optional<List<TrechoLegenda>> buscar(String youtubeId, String idioma) {
+    public Optional<LegendaBaixada> buscar(String youtubeId, String idioma) {
         TranscriptList disponiveis = listar(youtubeId);
 
-        Transcript manual;
+        Transcript transcript;
+        boolean automatica = false;
         try {
-            manual = disponiveis.findManualTranscript(idioma);
-        } catch (TranscriptRetrievalException e) {
-            log.warn("Vídeo [{}] sem legenda manual em '{}': {}", youtubeId, idioma, e.getMessage());
-            return Optional.empty();
+            transcript = disponiveis.findManualTranscript(idioma);
+        } catch (TranscriptRetrievalException semManual) {
+            try {
+                transcript = disponiveis.findGeneratedTranscript(idioma);
+                automatica = true;
+            } catch (TranscriptRetrievalException semAutomatica) {
+                log.warn("Vídeo [{}] sem legenda manual nem automática em '{}': {}",
+                        youtubeId, idioma, semAutomatica.getMessage());
+                return Optional.empty();
+            }
         }
 
-        List<TrechoLegenda> trechos = converter(baixar(manual, youtubeId));
+        List<TrechoLegenda> trechos = converter(baixar(transcript, youtubeId));
         if (trechos.isEmpty()) {
-            log.warn("Vídeo [{}] com legenda manual vazia", youtubeId);
+            log.warn("Vídeo [{}] com legenda vazia", youtubeId);
             return Optional.empty();
         }
-        return Optional.of(trechos);
+        return Optional.of(new LegendaBaixada(trechos, automatica));
     }
 
     @Override

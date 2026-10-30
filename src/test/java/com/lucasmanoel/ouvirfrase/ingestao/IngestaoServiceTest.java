@@ -1,13 +1,16 @@
 package com.lucasmanoel.ouvirfrase.ingestao;
 
-import com.lucasmanoel.ouvirfrase.dto.TrechoLegenda;
-import com.lucasmanoel.ouvirfrase.exception.FalhaNaBuscaDeLegendaException;
-import com.lucasmanoel.ouvirfrase.exception.IngestaoInterrompidaException;
+import com.lucasmanoel.ouvirfrase.ingestao.catalogo.CatalogoDeVideos;
+import com.lucasmanoel.ouvirfrase.ingestao.catalogo.VideoSemente;
+import com.lucasmanoel.ouvirfrase.ingestao.indexacao.IndexadorDeVideo;
+import com.lucasmanoel.ouvirfrase.ingestao.legenda.FalhaNaBuscaDeLegendaException;
+import com.lucasmanoel.ouvirfrase.ingestao.legenda.LegendaBaixada;
+import com.lucasmanoel.ouvirfrase.ingestao.legenda.LegendaProvider;
+import com.lucasmanoel.ouvirfrase.ingestao.legenda.TrechoLegenda;
 import com.lucasmanoel.ouvirfrase.model.Video;
 import com.lucasmanoel.ouvirfrase.model.VideoDescartado;
 import com.lucasmanoel.ouvirfrase.repository.VideoDescartadoRepository;
 import com.lucasmanoel.ouvirfrase.repository.VideoRepository;
-import com.lucasmanoel.ouvirfrase.service.IndexadorDeVideo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

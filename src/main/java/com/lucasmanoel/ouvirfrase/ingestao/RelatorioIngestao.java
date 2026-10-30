@@ -1,5 +1,7 @@
 package com.lucasmanoel.ouvirfrase.ingestao;
 
+import com.lucasmanoel.ouvirfrase.ingestao.catalogo.VideoSemente;
+
 import java.util.EnumMap;
 import java.util.Map;
 

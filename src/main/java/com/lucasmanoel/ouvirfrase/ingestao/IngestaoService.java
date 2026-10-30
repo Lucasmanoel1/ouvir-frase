@@ -1,13 +1,16 @@
 package com.lucasmanoel.ouvirfrase.ingestao;
 
-import com.lucasmanoel.ouvirfrase.dto.TrechoLegenda;
-import com.lucasmanoel.ouvirfrase.exception.FalhaNaBuscaDeLegendaException;
-import com.lucasmanoel.ouvirfrase.exception.IngestaoInterrompidaException;
-import com.lucasmanoel.ouvirfrase.exception.YouTubeApiException;
+import com.lucasmanoel.ouvirfrase.ingestao.catalogo.CatalogoDeVideos;
+import com.lucasmanoel.ouvirfrase.ingestao.catalogo.VideoSemente;
+import com.lucasmanoel.ouvirfrase.ingestao.indexacao.IndexadorDeVideo;
+import com.lucasmanoel.ouvirfrase.ingestao.legenda.FalhaNaBuscaDeLegendaException;
+import com.lucasmanoel.ouvirfrase.ingestao.legenda.LegendaBaixada;
+import com.lucasmanoel.ouvirfrase.ingestao.legenda.LegendaProvider;
+import com.lucasmanoel.ouvirfrase.ingestao.legenda.TrechoLegenda;
+import com.lucasmanoel.ouvirfrase.ingestao.youtube.YouTubeApiException;
 import com.lucasmanoel.ouvirfrase.model.VideoDescartado;
 import com.lucasmanoel.ouvirfrase.repository.VideoDescartadoRepository;
 import com.lucasmanoel.ouvirfrase.repository.VideoRepository;
-import com.lucasmanoel.ouvirfrase.service.IndexadorDeVideo;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;

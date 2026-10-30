@@ -1,7 +1,7 @@
 (() => {
   const $ = (id) => document.getElementById(id);
   const form = $('form-busca'), campo = $('frase'), status = $('status');
-  const selo = $('selo'), seloAuto = $('selo-auto'), legenda = $('legenda'), titulo = $('titulo'), contador = $('contador');
+  const selo = $('selo'), seloAuto = $('selo-auto'), legenda = $('legenda'), contador = $('contador');
   const lista = $('ocorrencias'), btnAnterior = $('anterior'), btnProximo = $('proximo');
   const idiomaSel = $('idioma'), pilula = $('pilula-idioma');
 
@@ -15,7 +15,7 @@
   let player = null, ytPronto = false, pendente = null;
   let cues = null, cueAtual = -2, traducaoLigada = lerTraducao();
   // Tradução no navegador (Translator API do Chrome). estado: indisponivel | inativo | baixando | pronto
-  const trad = { estado: 'indisponivel', origem: null, instancia: null, progresso: 0 };
+  const trad = { estado: 'indisponivel', origem: null, instancia: null, progresso: 0, consultando: null, gesto: false };
   const traducoes = new Map(); // 'origem|texto' -> Promise da tradução
   const legendas = new Map(); // youtubeId -> Promise da legenda completa do vídeo
 
@@ -116,22 +116,27 @@
   }
 
   // Vê se o par origem->português existe neste navegador; com o modelo já baixado e a tradução ligada, cria sozinho.
-  async function prepararTraducao(codigo) {
+  async function prepararTraducao(codigo, gesto = false) {
     const origem = origemDe(codigo);
     if (trad.origem === origem && (trad.estado === 'pronto' || trad.estado === 'baixando')) return;
+    if (trad.consultando === origem) { if (gesto) trad.gesto = true; return; } // já perguntando ao Chrome
     trad.origem = origem;
+    trad.gesto = gesto;
     trad.instancia = null;
     trad.estado = 'indisponivel';
     atualizarTraducao();
     if (!('Translator' in self) || origem === IDIOMA_ALVO) return;
+    trad.consultando = origem;
     try {
       const a = await Translator.availability({ sourceLanguage: origem, targetLanguage: IDIOMA_ALVO });
+      if (trad.consultando === origem) trad.consultando = null;
       if (trad.origem !== origem || trad.estado !== 'indisponivel') return;
       if (a === 'unavailable') return;
       trad.estado = 'inativo';
       atualizarTraducao();
-      if (a === 'available' && traducaoLigada) criarTradutor(origem);
-    } catch (e) { /* fica indisponível */ }
+      // baixar o modelo exige um gesto do usuário: a busca (Enter ou clique) já conta e adianta o download
+      if (traducaoLigada && (a === 'available' || (a === 'downloadable' && trad.gesto))) criarTradutor(origem);
+    } catch (e) { if (trad.consultando === origem) trad.consultando = null; /* fica indisponível */ }
   }
 
   // Com o modelo por baixar, precisa ser chamado direto de um clique do usuário.
@@ -237,6 +242,7 @@
     frase = texto.trim();
     if (!frase) return;
     history.replaceState(null, '', '?q=' + encodeURIComponent(frase) + '&l=' + encodeURIComponent(idioma));
+    prepararTraducao(idioma, !!(navigator.userActivation && navigator.userActivation.isActive));
     const mantemEstudio = document.body.dataset.estado === 'resultados';
     if (mantemEstudio) {
       document.body.classList.add('ocupado');
@@ -334,7 +340,6 @@
     selo.textContent = 'Frase aproximada · ' + Math.round((r.pontuacao || 0) * 100) + '% das palavras';
     renderLegenda(legenda, r.legenda || '');
     carregarLegendaDoVideo(r);
-    titulo.textContent = r.titulo || '';
     contador.textContent = (indice + 1) + ' de ' + resultados.length;
     btnAnterior.disabled = indice === 0;
     btnProximo.disabled = indice === resultados.length - 1;

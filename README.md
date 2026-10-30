@@ -46,6 +46,7 @@ CSV de vídeos → filtro embeddable → legenda → índice invertido (PostgreS
 | `video` | Um vídeo indexado (`youtube_id` único), com canal, idioma, origem da legenda (`legenda_automatica`) e idioma da tradução (`traducao_idioma`). |
 | `trecho` | Cada trecho de legenda: texto, início, duração e `traducao`. |
 | `ocorrencia` | **O índice:** uma linha por palavra, com `palavra`, `posicao` e `inicio_seg`. |
+| `video_descartado` | Vídeos que a ingestão já rejeitou (`youtube_id`, `motivo`, `data`), para não reconsultar. |
 
 - `posicao` é o contador de palavras do **vídeo inteiro** (não reinicia a cada trecho), o que permite achar frases que cruzam dois trechos.
 - Índice B-tree em `ocorrencia (palavra, video_id, posicao)`.
@@ -119,7 +120,7 @@ Os dois comandos abaixo funcionam no PowerShell e no bash. **Mantenha as aspas:*
 |---|---|---|
 | `-Dspring-boot.run.profiles=ingestao` | Ativa o perfil de ingestão (sem servidor web). Sem ele, o comando sobe o site. | — |
 | `-Dspring-boot.run.arguments="…"` | Repassa os argumentos abaixo para a aplicação. | — |
-| `--ingestao.limite=N` | Processa no máximo N vídeos por execução. O resto aparece como "adiados" no relatório; rode de novo para continuar. Vídeos descartados também contam no limite. `0` = sem limite. | `0` |
+| `--ingestao.limite=N` | Processa no máximo N vídeos por execução. O resto aparece como "adiados" no relatório; rode de novo para continuar. Só vídeos novos contam no limite; descartados em rodadas anteriores não. `0` = sem limite. | `0` |
 | `--ingestao.pausa-ms=N` | Pausa entre vídeos, em milissegundos. Pausa maior reduz o risco de bloqueio do IP; `6000` é o valor usado nos lotes. | `1500` |
 | `--ingestao.traduzir=pt` | Também baixa a tradução automática do YouTube para o idioma indicado e grava em `trecho.traducao`. Vazio = desligado. | vazio |
 | `--ingestao.dados=pasta` | Pasta raiz dos CSVs. | `data` |
@@ -130,7 +131,7 @@ Os dois comandos abaixo funcionam no PowerShell e no bash. **Mantenha as aspas:*
 ### Como a ingestão se comporta
 
 - **Vídeos já indexados são pulados.** Rodar de novo não duplica nada.
-- **Problema do vídeo** (não incorporável, sem legenda manual nem automática) → descarta com motivo e segue.
+- **Problema do vídeo** (não encontrado, não incorporável, sem legenda manual nem automática, sem palavras aproveitáveis) → descarta com motivo e segue. O descarte é gravado em `video_descartado`: nas próximas rodadas o vídeo é pulado sem chamar o YouTube e sem gastar o `--ingestao.limite`. Para reavaliar um vídeo, apague a linha dele: `DELETE FROM video_descartado WHERE motivo = 'SEM_LEGENDA';` (ou `youtube_id = '...'`).
 - **Falha de infraestrutura** (chave inválida, cota, **bloqueio de IP pelo YouTube**) → para tudo, imprime o relatório parcial e sai com erro (código 1). Basta esperar e rodar de novo.
 - **Legenda automática.** Quando o vídeo não tem legenda manual, a automática é aceita e a origem fica registrada em `video.legenda_automatica`. O log marca "(legenda automática)".
 - Ao final, o relatório mostra quantos entraram, quantos já existiam e quantos foram descartados (e por quê):
@@ -140,8 +141,9 @@ Relatório da ingestão
   Na lista: 207
   Indexados agora: 15
   Já indexados (pulados): 28
+  Já descartados antes (pulados): 0
   Adiados pelo limite (rode de novo): 164
-  Descartados: 0
+  Descartados agora: 0
 ```
 
 ### Tradução da legenda (opcional, experimental)
@@ -149,7 +151,7 @@ Relatório da ingestão
 Com `--ingestao.traduzir=pt`, cada vídeo também recebe a **tradução automática do YouTube** (`Transcript.translate`), gravada em `trecho.traducao`. Vale para vídeos novos e, na mesma execução, para os **já indexados que ainda não têm tradução** (só os que estão nos CSVs).
 
 - A tradução é casada com os trechos por **tempo de início** (tolerância de 1 s). O log mostra a porcentagem de trechos que casaram por vídeo, com aviso abaixo de 90%.
-- Só vídeos com **legenda manual** podem ser traduzidos. Vídeo que não permite tradução é marcado (`video.traducao_idioma = '-'`) e não é tentado de novo.
+- Só vídeos com **legenda manual** podem ser traduzidos: os de legenda automática são ignorados nessa etapa, sem gastar requisição. Vídeo manual que não permite tradução é marcado (`video.traducao_idioma = '-'`) e não é tentado de novo.
 - Cada vídeo traduzido custa 1 a 2 requisições a mais. Rode em lotes, com pausa maior, repetindo até acabar.
 - **Limitação conhecida:** o download da tradução já devolveu `429` do YouTube mesmo com pausa de 6 s, enquanto o download normal da legenda funcionava. Por isso o recurso fica desligado por padrão.
 - Sem tradução, o front esconde a linha de tradução e o botão correspondente.
@@ -224,7 +226,7 @@ src/main/java/com/lucasmanoel/ouvirfrase/
   config/  controller/  service/  repository/  model/  dto/  exception/
   ingestao/                    # pipeline offline: CSV, filtro embeddable, legendas, runner
 src/main/resources/
-  db/migration/                # Flyway (V1 tabelas, V2 canal, V3 tradução, V4 legenda automática)
+  db/migration/                # Flyway (V1 tabelas, V2 canal, V3 tradução, V4 legenda automática, V5 descartados)
   static/                      # front (HTML/CSS/JS puro: app, ferramentas, pronuncia; fonts/, icons.svg)
 data/<idioma>/<canal>.csv      # listas de vídeos da ingestão
 docs/                          # identidade visual e roteiro de vídeo

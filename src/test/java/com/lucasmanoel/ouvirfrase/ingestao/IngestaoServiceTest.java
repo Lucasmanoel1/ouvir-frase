@@ -3,11 +3,15 @@ package com.lucasmanoel.ouvirfrase.ingestao;
 import com.lucasmanoel.ouvirfrase.dto.TrechoLegenda;
 import com.lucasmanoel.ouvirfrase.exception.FalhaNaBuscaDeLegendaException;
 import com.lucasmanoel.ouvirfrase.exception.IngestaoInterrompidaException;
+import com.lucasmanoel.ouvirfrase.model.Video;
+import com.lucasmanoel.ouvirfrase.model.VideoDescartado;
+import com.lucasmanoel.ouvirfrase.repository.VideoDescartadoRepository;
 import com.lucasmanoel.ouvirfrase.repository.VideoRepository;
 import com.lucasmanoel.ouvirfrase.service.IndexadorDeVideo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -18,7 +22,10 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
+import static org.assertj.core.api.Assertions.tuple;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -37,12 +44,13 @@ class IngestaoServiceTest {
     @Mock private LegendaProvider legendaProvider;
     @Mock private IndexadorDeVideo indexador;
     @Mock private VideoRepository videoRepository;
+    @Mock private VideoDescartadoRepository descartadoRepository;
 
     private IngestaoService service;
 
     @BeforeEach
     void preparar() {
-        service = new IngestaoService(catalogo, filtro, legendaProvider, indexador, videoRepository, 0, 0, "");
+        service = new IngestaoService(catalogo, filtro, legendaProvider, indexador, videoRepository, descartadoRepository, 0, 0, "");
     }
 
     @Test
@@ -66,6 +74,26 @@ class IngestaoServiceTest {
                 .containsEntry(D, MotivoDescarte.NAO_INCORPORAVEL)
                 .hasSize(2);
         verify(indexador).indexar(B.youtubeId(), "B", "en", null, trechos, true);
+
+        ArgumentCaptor<VideoDescartado> gravados = ArgumentCaptor.forClass(VideoDescartado.class);
+        verify(descartadoRepository, times(2)).save(gravados.capture());
+        assertThat(gravados.getAllValues())
+                .extracting(VideoDescartado::getYoutubeId, VideoDescartado::getMotivo)
+                .containsExactlyInAnyOrder(tuple(C.youtubeId(), "SEM_LEGENDA"), tuple(D.youtubeId(), "NAO_INCORPORAVEL"));
+    }
+
+    @Test
+    void deveIgnorarVideoJaDescartadoSemConsultarFiltroNemLegenda() {
+        when(catalogo.carregar(DADOS)).thenReturn(List.of(C));
+        when(descartadoRepository.existsById(C.youtubeId())).thenReturn(true);
+        when(filtro.filtrar(List.of())).thenReturn(new ResultadoFiltro(List.of(), Map.of()));
+
+        RelatorioIngestao relatorio = service.executar(DADOS);
+
+        assertThat(relatorio.jaDescartados()).isEqualTo(1);
+        assertThat(relatorio.descartados()).isEmpty();
+        verifyNoInteractions(legendaProvider, indexador);
+        verify(descartadoRepository, never()).save(any());
     }
 
     @Test
@@ -87,8 +115,8 @@ class IngestaoServiceTest {
     @Test
     void deveCompletarSoATraducaoDeVideoJaIndexadoSemTraducao() {
         IngestaoService comTraducao = new IngestaoService(
-                catalogo, filtro, legendaProvider, indexador, videoRepository, 0, 0, "pt");
-        com.lucasmanoel.ouvirfrase.model.Video indexado = new com.lucasmanoel.ouvirfrase.model.Video();
+                catalogo, filtro, legendaProvider, indexador, videoRepository, descartadoRepository, 0, 0, "pt");
+        Video indexado = new Video();
         List<TrechoLegenda> traduzidos = List.of(new TrechoLegenda("olá mundo", 1.0, 2.0));
         when(catalogo.carregar(DADOS)).thenReturn(List.of(A));
         when(videoRepository.existsByYoutubeId(A.youtubeId())).thenReturn(true);
@@ -101,5 +129,21 @@ class IngestaoServiceTest {
 
         verify(indexador).aplicarTraducao(A.youtubeId(), "pt", traduzidos);
         verify(legendaProvider, never()).buscar(A.youtubeId(), "en");
+    }
+
+    @Test
+    void naoDeveTentarTraducaoDeVideoComLegendaAutomatica() {
+        IngestaoService comTraducao = new IngestaoService(
+                catalogo, filtro, legendaProvider, indexador, videoRepository, descartadoRepository, 0, 0, "pt");
+        Video automatico = new Video();
+        automatico.setLegendaAutomatica(true);
+        when(catalogo.carregar(DADOS)).thenReturn(List.of(A));
+        when(videoRepository.existsByYoutubeId(A.youtubeId())).thenReturn(true);
+        when(videoRepository.findByYoutubeId(A.youtubeId())).thenReturn(Optional.of(automatico));
+        when(filtro.filtrar(List.of())).thenReturn(new ResultadoFiltro(List.of(), Map.of()));
+
+        comTraducao.executar(DADOS);
+
+        verifyNoInteractions(legendaProvider);
     }
 }

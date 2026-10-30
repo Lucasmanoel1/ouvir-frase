@@ -4,12 +4,8 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestClient;
-import org.springframework.web.client.RestClientException;
-import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.util.UriBuilder;
 
-import java.net.URI;
 import java.time.Duration;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
@@ -18,7 +14,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -32,13 +27,12 @@ import java.util.regex.Pattern;
 @RequiredArgsConstructor
 public class YouTubeCanalClient {
 
-    static final int TAMANHO_LOTE = 50;
     static final Duration DURACAO_MINIMA = Duration.ofSeconds(60); // descarta Shorts
 
     private static final Pattern HANDLE = Pattern.compile("@([\\w.\\-]+)");
     private static final Pattern ID_CANAL = Pattern.compile("(UC[\\w-]{22})");
 
-    private final RestClient restClient;
+    private final YouTubeApi api;
 
     public record Canal(String titulo, String uploadsPlaylistId, String slug) {
     }
@@ -54,7 +48,7 @@ public class YouTubeCanalClient {
         String idCanal = handleLimpo == null && id.find() ? id.group(1) : null;
         String consulta = handleLimpo != null ? handleLimpo : (idCanal != null ? idCanal : entrada.trim());
 
-        RespostaCanais resposta = chamar(uri -> {
+        RespostaCanais resposta = api.get(uri -> {
             UriBuilder b = uri.path("/channels").queryParam("part", "snippet,contentDetails");
             return (idCanal != null ? b.queryParam("id", idCanal) : b.queryParam("forHandle", consulta)).build();
         }, RespostaCanais.class);
@@ -79,9 +73,9 @@ public class YouTubeCanalClient {
         String pagina = null;
         do {
             final String token = pagina;
-            RespostaPlaylist resposta = chamar(uri -> {
+            RespostaPlaylist resposta = api.get(uri -> {
                 UriBuilder b = uri.path("/playlistItems").queryParam("part", "snippet")
-                        .queryParam("playlistId", uploadsPlaylistId).queryParam("maxResults", TAMANHO_LOTE);
+                        .queryParam("playlistId", uploadsPlaylistId).queryParam("maxResults", YouTubeApi.TAMANHO_LOTE);
                 return (token != null ? b.queryParam("pageToken", token) : b).build();
             }, RespostaPlaylist.class);
             if (resposta == null || resposta.items() == null) {
@@ -119,10 +113,9 @@ public class YouTubeCanalClient {
 
     private Map<String, DetalhesVideo> detalhes(List<VideoDoCanal> videos) {
         Map<String, DetalhesVideo> mapa = new HashMap<>();
-        for (int i = 0; i < videos.size(); i += TAMANHO_LOTE) {
-            List<VideoDoCanal> lote = videos.subList(i, Math.min(i + TAMANHO_LOTE, videos.size()));
+        for (List<VideoDoCanal> lote : YouTubeApi.emLotes(videos)) {
             String ids = String.join(",", lote.stream().map(VideoDoCanal::youtubeId).toList());
-            RespostaVideos resposta = chamar(uri -> uri.path("/videos")
+            RespostaVideos resposta = api.get(uri -> uri.path("/videos")
                     .queryParam("part", "contentDetails").queryParam("id", ids).build(), RespostaVideos.class);
             if (resposta != null && resposta.items() != null) {
                 for (ItemVideo item : resposta.items()) {
@@ -149,17 +142,6 @@ public class YouTubeCanalClient {
     static String slug(String texto) {
         String s = texto.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9_-]+", "-").replaceAll("^-+|-+$", "");
         return s.isEmpty() ? "canal" : s;
-    }
-
-    private <T> T chamar(Function<UriBuilder, URI> uri, Class<T> tipo) {
-        try {
-            return restClient.get().uri(uri).retrieve().body(tipo);
-        } catch (RestClientResponseException e) {
-            throw new YouTubeApiException("YouTube Data API respondeu HTTP "
-                    + e.getStatusCode().value() + ": " + e.getResponseBodyAsString(), e);
-        } catch (RestClientException e) {
-            throw new YouTubeApiException("Falha de comunicação com a YouTube Data API", e);
-        }
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

@@ -4,9 +4,6 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestClient;
-import org.springframework.web.client.RestClientException;
-import org.springframework.web.client.RestClientResponseException;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -20,38 +17,23 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class YouTubeDataClient {
 
-    static final int TAMANHO_LOTE = 50;
-
-    private final RestClient restClient;
-
+    private final YouTubeApi api;
 
     public Map<String, Boolean> consultarEmbeddable(Collection<String> ids) {
         List<String> unicos = new ArrayList<>(new LinkedHashSet<>(ids));
         Map<String, Boolean> resultado = new HashMap<>();
 
-        for (int i = 0; i < unicos.size(); i += TAMANHO_LOTE) {
-            List<String> lote = unicos.subList(i, Math.min(i + TAMANHO_LOTE, unicos.size()));
+        for (List<String> lote : YouTubeApi.emLotes(unicos)) {
             consultarLote(lote, resultado);
         }
         return resultado;
     }
 
     private void consultarLote(List<String> lote, Map<String, Boolean> resultado) {
-        RespostaVideos resposta;
-        try {
-            resposta = restClient.get()
-                    .uri(uri -> uri.path("/videos")
-                            .queryParam("part", "status")
-                            .queryParam("id", String.join(",", lote))
-                            .build())
-                    .retrieve()
-                    .body(RespostaVideos.class);
-        } catch (RestClientResponseException e) {
-            throw new YouTubeApiException("YouTube Data API respondeu HTTP "
-                    + e.getStatusCode().value() + ": " + e.getResponseBodyAsString(), e);
-        } catch (RestClientException e) {
-            throw new YouTubeApiException("Falha de comunicação com a YouTube Data API", e);
-        }
+        RespostaVideos resposta = api.get(uri -> uri.path("/videos")
+                .queryParam("part", "status")
+                .queryParam("id", String.join(",", lote))
+                .build(), RespostaVideos.class);
 
         if (resposta == null || resposta.items() == null) {
             return;

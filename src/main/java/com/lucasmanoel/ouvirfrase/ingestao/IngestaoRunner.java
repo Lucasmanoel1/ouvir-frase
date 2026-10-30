@@ -3,7 +3,6 @@ package com.lucasmanoel.ouvirfrase.ingestao;
 import com.lucasmanoel.ouvirfrase.ingestao.youtube.DescobertaDeCanal;
 import com.lucasmanoel.ouvirfrase.ingestao.youtube.YouTubeApiException;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.SpringApplication;
@@ -11,7 +10,6 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
-import java.nio.file.Path;
 import java.util.List;
 
 /**
@@ -27,14 +25,14 @@ public class IngestaoRunner implements ApplicationRunner {
     private final IngestaoService ingestao;
     private final DescobertaDeCanal descoberta;
     private final ApplicationContext contexto;
-    private final Path dados;
+    private final IngestaoProperties props;
 
     public IngestaoRunner(IngestaoService ingestao, DescobertaDeCanal descoberta, ApplicationContext contexto,
-                          @Value("${ingestao.dados:data}") String dados) {
+                          IngestaoProperties props) {
         this.ingestao = ingestao;
         this.descoberta = descoberta;
         this.contexto = contexto;
-        this.dados = Path.of(dados);
+        this.props = props;
     }
 
     @Override
@@ -43,7 +41,7 @@ public class IngestaoRunner implements ApplicationRunner {
             if (args.containsOption("canal")) {
                 descobrir(args);
             } else {
-                log.info("\n{}", ingestao.executar(dados).resumo());
+                log.info("\n{}", ingestao.executar().resumo());
             }
         } catch (IngestaoInterrompidaException e) {
             log.error("Ingestão interrompida por falha de infraestrutura: {}\n{}",
@@ -60,7 +58,7 @@ public class IngestaoRunner implements ApplicationRunner {
         String idioma = valor(args, "idioma", "en");
         int max = Integer.parseInt(valor(args, "max", "100"));
 
-        DescobertaDeCanal.Resultado r = descoberta.descobrir(dados, canal, idioma, max);
+        DescobertaDeCanal.Resultado r = descoberta.descobrir(props.dados(), canal, idioma, max);
         log.info("{} vídeos novos gravados em {}. Revise o arquivo e rode a ingestão (sem --canal).",
                 r.gravados(), r.arquivo());
     }

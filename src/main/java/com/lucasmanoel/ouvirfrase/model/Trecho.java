@@ -8,11 +8,9 @@ import static jakarta.persistence.FetchType.LAZY;
 
 @Getter
 @Setter
-@AllArgsConstructor
 @NoArgsConstructor
 @Entity
 @Table(name = "trecho")
-@Builder
 public class Trecho {
 
     @Id

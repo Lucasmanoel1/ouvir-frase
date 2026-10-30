@@ -5,11 +5,9 @@ import lombok.*;
 
 @Getter
 @Setter
-@AllArgsConstructor
 @NoArgsConstructor
 @Entity
 @Table(name = "ocorrencia")
-@Builder
 public class Ocorrencia {
 
     @Id

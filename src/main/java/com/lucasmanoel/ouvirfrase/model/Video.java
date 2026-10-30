@@ -5,11 +5,9 @@ import lombok.*;
 
 @Getter
 @Setter
-@AllArgsConstructor
 @NoArgsConstructor
 @Entity
 @Table(name = "video")
-@Builder
 public class Video {
 
     @Id

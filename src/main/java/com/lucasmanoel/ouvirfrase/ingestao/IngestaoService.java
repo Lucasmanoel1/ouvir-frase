@@ -11,11 +11,9 @@ import com.lucasmanoel.ouvirfrase.model.VideoDescartado;
 import com.lucasmanoel.ouvirfrase.repository.VideoDescartadoRepository;
 import com.lucasmanoel.ouvirfrase.repository.VideoRepository;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 
-import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -41,8 +39,7 @@ public class IngestaoService {
     private final IndexadorDeVideo indexador;
     private final VideoRepository videoRepository;
     private final VideoDescartadoRepository descartadoRepository;
-    private final long pausaMs;
-    private final int limite;
+    private final IngestaoProperties props;
 
     public IngestaoService(CatalogoDeVideos catalogo,
                            FiltroEmbeddable filtro,
@@ -50,89 +47,88 @@ public class IngestaoService {
                            IndexadorDeVideo indexador,
                            VideoRepository videoRepository,
                            VideoDescartadoRepository descartadoRepository,
-                           @Value("${ingestao.pausa-ms:1500}") long pausaMs,
-                           @Value("${ingestao.limite:0}") int limite) {
+                           IngestaoProperties props) {
         this.catalogo = catalogo;
         this.filtro = filtro;
         this.legendaProvider = legendaProvider;
         this.indexador = indexador;
         this.videoRepository = videoRepository;
         this.descartadoRepository = descartadoRepository;
-        this.pausaMs = pausaMs;
-        this.limite = limite;
+        this.props = props;
     }
 
-    public RelatorioIngestao executar(Path dados) {
-        List<VideoSemente> sementes = catalogo.carregar(dados);
+    public RelatorioIngestao executar() {
+        List<VideoSemente> sementes = catalogo.carregar(props.dados());
+        Triagem triagem = triar(sementes);
 
+        Map<VideoSemente, MotivoDescarte> descartados = new LinkedHashMap<>();
+        Placar placar = new Placar();
+        try {
+            ResultadoFiltro filtrado = filtro.filtrar(triagem.novas());
+            descartados.putAll(filtrado.descartados());
+            filtrado.descartados().forEach(this::registrarDescarte);
+
+            indexarAprovados(filtrado.aprovados(), descartados, placar);
+        } catch (FalhaNaBuscaDeLegendaException | YouTubeApiException e) {
+            throw new IngestaoInterrompidaException(
+                    new RelatorioIngestao(sementes.size(), placar.indexados, triagem.jaIndexados(),
+                            triagem.jaDescartados(), 0, descartados), e);
+        }
+        return new RelatorioIngestao(sementes.size(), placar.indexados, triagem.jaIndexados(),
+                triagem.jaDescartados(), placar.adiados, descartados);
+    }
+
+    /** Separa o que já foi indexado, o que já foi descartado antes e o que ainda é novo. */
+    private Triagem triar(List<VideoSemente> sementes) {
         List<VideoSemente> novas = new ArrayList<>();
         int jaIndexados = 0;
         int jaDescartados = 0;
         for (VideoSemente s : sementes) {
             if (videoRepository.existsByYoutubeId(s.youtubeId())) {
                 jaIndexados++;
-                completarCanal(s);
             } else if (descartadoRepository.existsById(s.youtubeId())) {
                 jaDescartados++;
             } else {
                 novas.add(s);
             }
         }
-
-        Map<VideoSemente, MotivoDescarte> descartados = new LinkedHashMap<>();
-        int indexados = 0;
-        int adiados = 0;
-        try {
-            ResultadoFiltro filtrado = filtro.filtrar(novas);
-            descartados.putAll(filtrado.descartados());
-            filtrado.descartados().forEach(this::registrarDescarte);
-
-            List<VideoSemente> aprovados = filtrado.aprovados();
-            for (int i = 0; i < aprovados.size(); i++) {
-                if (limite > 0 && i >= limite) {
-                    adiados = aprovados.size() - i;
-                    break;
-                }
-                VideoSemente video = aprovados.get(i);
-                if (i > 0) {
-                    pausar();
-                }
-
-                Optional<LegendaBaixada> legenda = legendaProvider.buscar(video.youtubeId(), video.idioma());
-                if (legenda.isEmpty()) {
-                    descartar(descartados, video, MotivoDescarte.SEM_LEGENDA);
-                    continue;
-                }
-
-                try {
-                    boolean automatica = legenda.get().automatica();
-                    int ocorrencias = indexador.indexar(video.youtubeId(), video.titulo(), video.idioma(),
-                            video.canal(), legenda.get().trechos(), automatica);
-                    indexados++;
-                    log.info("Indexado [{}] {}{}: {} ocorrências", video.youtubeId(), video.titulo(),
-                            automatica ? " (legenda automática)" : "", ocorrencias);
-                } catch (IllegalArgumentException e) {
-                    descartar(descartados, video, MotivoDescarte.SEM_PALAVRAS);
-                }
-            }
-        } catch (FalhaNaBuscaDeLegendaException | YouTubeApiException e) {
-            throw new IngestaoInterrompidaException(
-                    new RelatorioIngestao(sementes.size(), indexados, jaIndexados, jaDescartados, 0, descartados), e);
-        }
-        return new RelatorioIngestao(sementes.size(), indexados, jaIndexados, jaDescartados, adiados, descartados);
+        return new Triagem(novas, jaIndexados, jaDescartados);
     }
 
-    /** Vídeos indexados antes da coluna 'canal' existir ganham o canal ao reaparecer no catálogo. */
-    private void completarCanal(VideoSemente semente) {
-        if (semente.canal() == null) {
-            return;
+    private void indexarAprovados(List<VideoSemente> aprovados, Map<VideoSemente, MotivoDescarte> descartados,
+                                  Placar placar) {
+        for (int i = 0; i < aprovados.size(); i++) {
+            if (props.limite() > 0 && i >= props.limite()) {
+                placar.adiados = aprovados.size() - i;
+                break;
+            }
+            if (i > 0) {
+                pausar();
+            }
+            if (indexar(aprovados.get(i), descartados)) {
+                placar.indexados++;
+            }
         }
-        videoRepository.findByYoutubeId(semente.youtubeId())
-                .filter(v -> v.getCanal() == null)
-                .ifPresent(v -> {
-                    v.setCanal(semente.canal());
-                    videoRepository.save(v);
-                });
+    }
+
+    /** Devolve true se o vídeo entrou no índice; false se foi descartado (e registrado). */
+    private boolean indexar(VideoSemente video, Map<VideoSemente, MotivoDescarte> descartados) {
+        Optional<LegendaBaixada> legenda = legendaProvider.buscar(video.youtubeId(), video.idioma());
+        if (legenda.isEmpty()) {
+            descartar(descartados, video, MotivoDescarte.SEM_LEGENDA);
+            return false;
+        }
+        try {
+            boolean automatica = legenda.get().automatica();
+            int ocorrencias = indexador.indexar(video.youtubeId(), video.titulo(), video.idioma(),
+                    video.canal(), legenda.get().trechos(), automatica);
+            log.info("Indexado [{}] {}{}: {} ocorrências", video.youtubeId(), video.titulo(),
+                    automatica ? " (legenda automática)" : "", ocorrencias);
+            return true;
+        } catch (IllegalArgumentException e) {
+            descartar(descartados, video, MotivoDescarte.SEM_PALAVRAS);
+            return false;
+        }
     }
 
     private void descartar(Map<VideoSemente, MotivoDescarte> descartados, VideoSemente video, MotivoDescarte motivo) {
@@ -147,14 +143,23 @@ public class IngestaoService {
     }
 
     private void pausar() {
-        if (pausaMs <= 0) {
+        if (props.pausaMs() <= 0) {
             return;
         }
         try {
-            Thread.sleep(pausaMs);
+            Thread.sleep(props.pausaMs());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Ingestão interrompida", e);
         }
+    }
+
+    private record Triagem(List<VideoSemente> novas, int jaIndexados, int jaDescartados) {
+    }
+
+    /** Contagem do que já aconteceu, para o relatório parcial se a ingestão for interrompida. */
+    private static final class Placar {
+        int indexados;
+        int adiados;
     }
 }

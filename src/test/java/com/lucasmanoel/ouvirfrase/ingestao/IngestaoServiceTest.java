@@ -52,9 +52,9 @@ class IngestaoServiceTest {
         when(videoRepository.existsByYoutubeId(A.youtubeId())).thenReturn(true);
         when(filtro.filtrar(List.of(B, C, D)))
                 .thenReturn(new ResultadoFiltro(List.of(B, C), Map.of(D, MotivoDescarte.NAO_INCORPORAVEL)));
-        when(legendaProvider.buscar(B.youtubeId(), "en")).thenReturn(Optional.of(trechos));
+        when(legendaProvider.buscar(B.youtubeId(), "en")).thenReturn(Optional.of(new LegendaBaixada(trechos, true)));
         when(legendaProvider.buscar(C.youtubeId(), "en")).thenReturn(Optional.empty());
-        when(indexador.indexar(B.youtubeId(), "B", "en", null, trechos)).thenReturn(2);
+        when(indexador.indexar(B.youtubeId(), "B", "en", null, trechos, true)).thenReturn(2);
 
         RelatorioIngestao relatorio = service.executar(DADOS);
 
@@ -65,7 +65,7 @@ class IngestaoServiceTest {
                 .containsEntry(C, MotivoDescarte.SEM_LEGENDA)
                 .containsEntry(D, MotivoDescarte.NAO_INCORPORAVEL)
                 .hasSize(2);
-        verify(indexador).indexar(B.youtubeId(), "B", "en", null, trechos);
+        verify(indexador).indexar(B.youtubeId(), "B", "en", null, trechos, true);
     }
 
     @Test

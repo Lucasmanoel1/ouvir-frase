@@ -48,7 +48,8 @@ public class BuscaService {
     private List<ResultadoBusca> exatos(List<String> palavras, String idioma) {
         return buscaRepository.buscarSequencia(palavras, idioma, LIMITE_RESULTADOS).stream()
                 .map(a -> new ResultadoBusca(a.youtubeId(), a.titulo(),
-                        Math.max(0.0, a.inicioSeg() - RECUO_SEG), a.fimSeg(), a.legenda(), 1.0, true))
+                        Math.max(0.0, a.inicioSeg() - RECUO_SEG), a.fimSeg(), a.legenda(), 1.0, true,
+                        a.legendaAutomatica()))
                 .toList();
     }
 
@@ -79,13 +80,15 @@ public class BuscaService {
             }
         });
 
+        Map<Long, Video> videos = videoRepository
+                .findAllById(achados.stream().map(Achado::videoId).distinct().toList()).stream()
+                .collect(Collectors.toMap(Video::getId, v -> v));
+
+        // mesmo score: legenda manual antes da automática (false < true), depois o trecho mais compacto
         achados.sort(Comparator.comparingDouble((Achado a) -> a.casamento().score()).reversed()
+                .thenComparing((Achado a) -> videos.get(a.videoId()).isLegendaAutomatica())
                 .thenComparingInt(a -> a.casamento().span()));
         List<Achado> melhores = achados.stream().limit(limite).toList();
-
-        Map<Long, Video> videos = videoRepository
-                .findAllById(melhores.stream().map(Achado::videoId).distinct().toList()).stream()
-                .collect(Collectors.toMap(Video::getId, v -> v));
 
         return melhores.stream().map(a -> {
             CasadorPorLacunas.Casamento c = a.casamento();
@@ -93,7 +96,8 @@ public class BuscaService {
             String legenda = buscaRepository.legenda(a.videoId(), c.primeira().trechoId(), c.ultima().trechoId());
             return new ResultadoBusca(v.getYoutubeId(), v.getTitulo(),
                     Math.max(0.0, c.primeira().inicioSeg() - RECUO_SEG),
-                    buscaRepository.fimDoTrecho(c.ultima().trechoId()), legenda, c.score(), false);
+                    buscaRepository.fimDoTrecho(c.ultima().trechoId()), legenda, c.score(), false,
+                    v.isLegendaAutomatica());
         }).toList();
     }
 

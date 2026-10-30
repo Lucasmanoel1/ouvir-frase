@@ -1,7 +1,7 @@
 (() => {
   const $ = (id) => document.getElementById(id);
   const form = $('form-busca'), campo = $('frase'), status = $('status');
-  const selo = $('selo'), legenda = $('legenda'), titulo = $('titulo'), contador = $('contador');
+  const selo = $('selo'), seloAuto = $('selo-auto'), legenda = $('legenda'), titulo = $('titulo'), contador = $('contador');
   const lista = $('ocorrencias'), btnAnterior = $('anterior'), btnProximo = $('proximo');
   const idiomaSel = $('idioma'), pilula = $('pilula-idioma');
 
@@ -238,6 +238,7 @@
     Pronuncia.limpar();
 
     selo.hidden = r.exata !== false;
+    seloAuto.hidden = !r.legendaAutomatica;
     selo.textContent = 'Frase aproximada · ' + Math.round((r.pontuacao || 0) * 100) + '% das palavras';
     renderLegenda(legenda, r.legenda || '');
     carregarLegendaDoVideo(r);

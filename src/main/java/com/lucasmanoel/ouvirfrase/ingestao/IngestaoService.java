@@ -93,17 +93,19 @@ public class IngestaoService {
                     pausar();
                 }
 
-                Optional<List<TrechoLegenda>> legenda = legendaProvider.buscar(video.youtubeId(), video.idioma());
+                Optional<LegendaBaixada> legenda = legendaProvider.buscar(video.youtubeId(), video.idioma());
                 if (legenda.isEmpty()) {
                     descartar(descartados, video, MotivoDescarte.SEM_LEGENDA);
                     continue;
                 }
 
                 try {
+                    boolean automatica = legenda.get().automatica();
                     int ocorrencias = indexador.indexar(video.youtubeId(), video.titulo(), video.idioma(),
-                            video.canal(), legenda.get());
+                            video.canal(), legenda.get().trechos(), automatica);
                     indexados++;
-                    log.info("Indexado [{}] {}: {} ocorrências", video.youtubeId(), video.titulo(), ocorrencias);
+                    log.info("Indexado [{}] {}{}: {} ocorrências", video.youtubeId(), video.titulo(),
+                            automatica ? " (legenda automática)" : "", ocorrencias);
                 } catch (IllegalArgumentException e) {
                     descartar(descartados, video, MotivoDescarte.SEM_PALAVRAS);
                     continue;

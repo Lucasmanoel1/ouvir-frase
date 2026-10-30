@@ -13,16 +13,9 @@ public class TratadorDeErros {
 
     private static final String MENSAGEM = "Parâmetros inválidos. Informe uma frase de até 200 caracteres e um idioma válido (ex.: en).";
 
-    // @NotBlank / @Size nos parâmetros do controller
-    @ExceptionHandler(HandlerMethodValidationException.class)
-    ResponseEntity<ErroResposta> validacao(HandlerMethodValidationException e) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(new ErroResposta("requisicao_invalida", MENSAGEM));
-    }
-
-    // parâmetro "frase" ausente
-    @ExceptionHandler(MissingServletRequestParameterException.class)
-    ResponseEntity<ErroResposta> parametroAusente(MissingServletRequestParameterException e) {
+    // @NotBlank / @Size nos parâmetros do controller, ou parâmetro "frase" ausente
+    @ExceptionHandler({HandlerMethodValidationException.class, MissingServletRequestParameterException.class})
+    ResponseEntity<ErroResposta> requisicaoInvalida(Exception e) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(new ErroResposta("requisicao_invalida", MENSAGEM));
     }

@@ -10,19 +10,19 @@ public class NormalizadorTest {
 
     @Test
     void deveManterApostrofoDentroDaPalavra() {
-        assertThat(normalizador.tokenizar("Don't stop"))
+        assertThat(normalizador.tokenizar("Don't stop", "en"))
                 .containsExactly("don't", "stop");
     }
 
     @Test
     void deveConverterApostrofoCurvoParaReto() {
-        assertThat(normalizador.tokenizar("it\u2019s"))
+        assertThat(normalizador.tokenizar("it\u2019s", "en"))
                 .containsExactly("it's");
     }
 
     @Test
     void deveRemoverMarcacoesDeSom() {
-        assertThat(normalizador.tokenizar("[Music] Hello (Laughter) world"))
+        assertThat(normalizador.tokenizar("[Music] Hello (Laughter) world", "en"))
                 .containsExactly("hello", "world");
     }
 

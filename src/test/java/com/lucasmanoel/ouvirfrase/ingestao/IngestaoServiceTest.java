@@ -52,7 +52,8 @@ class IngestaoServiceTest {
 
     @BeforeEach
     void preparar() {
-        service = new IngestaoService(catalogo, filtro, legendaProvider, indexador, videoRepository, descartadoRepository, 0, 0);
+        service = new IngestaoService(catalogo, filtro, legendaProvider, indexador, videoRepository, descartadoRepository,
+                new IngestaoProperties(DADOS, 0, 0));
     }
 
     @Test
@@ -66,7 +67,7 @@ class IngestaoServiceTest {
         when(legendaProvider.buscar(C.youtubeId(), "en")).thenReturn(Optional.empty());
         when(indexador.indexar(B.youtubeId(), "B", "en", null, trechos, true)).thenReturn(2);
 
-        RelatorioIngestao relatorio = service.executar(DADOS);
+        RelatorioIngestao relatorio = service.executar();
 
         assertThat(relatorio.total()).isEqualTo(4);
         assertThat(relatorio.indexados()).isEqualTo(1);
@@ -90,7 +91,7 @@ class IngestaoServiceTest {
         when(descartadoRepository.existsById(C.youtubeId())).thenReturn(true);
         when(filtro.filtrar(List.of())).thenReturn(new ResultadoFiltro(List.of(), Map.of()));
 
-        RelatorioIngestao relatorio = service.executar(DADOS);
+        RelatorioIngestao relatorio = service.executar();
 
         assertThat(relatorio.jaDescartados()).isEqualTo(1);
         assertThat(relatorio.descartados()).isEmpty();
@@ -106,7 +107,7 @@ class IngestaoServiceTest {
                 .thenThrow(new FalhaNaBuscaDeLegendaException("IP bloqueado"));
 
         assertThatExceptionOfType(IngestaoInterrompidaException.class)
-                .isThrownBy(() -> service.executar(DADOS))
+                .isThrownBy(service::executar)
                 .withCauseInstanceOf(FalhaNaBuscaDeLegendaException.class)
                 .satisfies(e -> assertThat(e.getRelatorioParcial().total()).isEqualTo(2));
 

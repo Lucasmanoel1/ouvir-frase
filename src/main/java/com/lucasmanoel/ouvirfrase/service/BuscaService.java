@@ -54,6 +54,25 @@ public class BuscaService {
     }
 
     private List<ResultadoBusca> aproximados(List<String> palavras, String idioma, int limite) {
+        Map<Long, List<CasadorPorLacunas.Candidata>> porVideo = carregarCandidatas(palavras, idioma);
+        List<Achado> achados = casarPorVideo(palavras, porVideo);
+
+        Map<Long, Video> videos = videoRepository
+                .findAllById(achados.stream().map(Achado::videoId).distinct().toList()).stream()
+                .collect(Collectors.toMap(Video::getId, v -> v));
+
+        // mesmo score: legenda manual antes da automática (false < true), depois o trecho mais compacto
+        achados.sort(Comparator.comparingDouble((Achado a) -> a.casamento().score()).reversed()
+                .thenComparing((Achado a) -> videos.get(a.videoId()).isLegendaAutomatica())
+                .thenComparingInt(a -> a.casamento().span()));
+
+        return achados.stream().limit(limite)
+                .map(a -> montarResultado(a.casamento(), a.videoId(), videos.get(a.videoId())))
+                .toList();
+    }
+
+    /** Ocorrências das palavras da frase, agrupadas por vídeo (só vídeos que têm palavras suficientes). */
+    private Map<Long, List<CasadorPorLacunas.Candidata>> carregarCandidatas(List<String> palavras, String idioma) {
         int n = palavras.size();
         List<String> distintas = palavras.stream().distinct().toList();
         // o vídeo pode perder no máximo (n - mínimo) palavras, então precisa ter quase todas as distintas
@@ -65,40 +84,35 @@ public class BuscaService {
             porVideo.computeIfAbsent(o.videoId(), k -> new ArrayList<>())
                     .add(new CasadorPorLacunas.Candidata(o.palavra(), o.posicao(), o.trechoId(), o.inicioSeg()));
         }
+        return porVideo;
+    }
 
-        record Achado(long videoId, CasadorPorLacunas.Casamento casamento) {
-        }
+    /** Casamentos aproximados de cada vídeo, sem repetir a frase exata (essa já veio da busca exata). */
+    private List<Achado> casarPorVideo(List<String> palavras, Map<Long, List<CasadorPorLacunas.Candidata>> porVideo) {
+        int n = palavras.size();
         List<Achado> achados = new ArrayList<>();
         porVideo.forEach((videoId, ocorrencias) -> {
             int aceitos = 0;
             for (CasadorPorLacunas.Casamento c : casador.casar(palavras, ocorrencias, 10)) {
-                boolean exataContigua = c.casadas() == n && c.span() == n; // essa já veio da busca exata
+                boolean exataContigua = c.casadas() == n && c.span() == n;
                 if (!exataContigua && aceitos < MAX_APROXIMADOS_POR_VIDEO) {
                     achados.add(new Achado(videoId, c));
                     aceitos++;
                 }
             }
         });
+        return achados;
+    }
 
-        Map<Long, Video> videos = videoRepository
-                .findAllById(achados.stream().map(Achado::videoId).distinct().toList()).stream()
-                .collect(Collectors.toMap(Video::getId, v -> v));
+    private ResultadoBusca montarResultado(CasadorPorLacunas.Casamento c, long videoId, Video v) {
+        String legenda = buscaRepository.legenda(videoId, c.primeira().trechoId(), c.ultima().trechoId());
+        return new ResultadoBusca(v.getYoutubeId(), v.getTitulo(),
+                Math.max(0.0, c.primeira().inicioSeg() - RECUO_SEG),
+                buscaRepository.fimDoTrecho(c.ultima().trechoId()), legenda, c.score(), false,
+                v.isLegendaAutomatica());
+    }
 
-        // mesmo score: legenda manual antes da automática (false < true), depois o trecho mais compacto
-        achados.sort(Comparator.comparingDouble((Achado a) -> a.casamento().score()).reversed()
-                .thenComparing((Achado a) -> videos.get(a.videoId()).isLegendaAutomatica())
-                .thenComparingInt(a -> a.casamento().span()));
-        List<Achado> melhores = achados.stream().limit(limite).toList();
-
-        return melhores.stream().map(a -> {
-            CasadorPorLacunas.Casamento c = a.casamento();
-            Video v = videos.get(a.videoId());
-            String legenda = buscaRepository.legenda(a.videoId(), c.primeira().trechoId(), c.ultima().trechoId());
-            return new ResultadoBusca(v.getYoutubeId(), v.getTitulo(),
-                    Math.max(0.0, c.primeira().inicioSeg() - RECUO_SEG),
-                    buscaRepository.fimDoTrecho(c.ultima().trechoId()), legenda, c.score(), false,
-                    v.isLegendaAutomatica());
-        }).toList();
+    private record Achado(long videoId, CasadorPorLacunas.Casamento casamento) {
     }
 
     /** Idiomas com vídeos indexados, do que tem mais vídeos para o que tem menos. */

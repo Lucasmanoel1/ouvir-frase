@@ -27,7 +27,7 @@ class YouTubeDataClientTest {
     void preparar() {
         RestClient.Builder builder = RestClient.builder().baseUrl("https://api.teste/youtube/v3");
         servidor = MockRestServiceServer.bindTo(builder).build();
-        client = new YouTubeDataClient(builder.build());
+        client = new YouTubeDataClient(new YouTubeApi(builder.build()));
     }
 
     @Test

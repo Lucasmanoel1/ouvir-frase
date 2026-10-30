@@ -22,7 +22,6 @@ import java.util.regex.Pattern;
 @Component
 public class Normalizador {
 
-    private static final String IDIOMA_PADRAO = "en";
 
     private static final Pattern MARCACAO_DE_SOM =
             Pattern.compile("\\[[^\\]]*\\]|\\([^)]*\\)");
@@ -35,10 +34,6 @@ public class Normalizador {
             Pattern.compile(CARACTERE_SOLTO + "|" + PALAVRA + "(?:'" + PALAVRA + ")*");
     private static final Pattern TOKEN_SEM_APOSTROFO =
             Pattern.compile(CARACTERE_SOLTO + "|" + PALAVRA);
-
-    public List<String> tokenizar(String texto) {
-        return tokenizar(texto, IDIOMA_PADRAO);
-    }
 
     public List<String> tokenizar(String texto, String idioma) {
         if (texto == null || texto.isEmpty()) {

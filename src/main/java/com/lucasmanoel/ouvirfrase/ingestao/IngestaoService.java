@@ -4,6 +4,8 @@ import com.lucasmanoel.ouvirfrase.dto.TrechoLegenda;
 import com.lucasmanoel.ouvirfrase.exception.FalhaNaBuscaDeLegendaException;
 import com.lucasmanoel.ouvirfrase.exception.IngestaoInterrompidaException;
 import com.lucasmanoel.ouvirfrase.exception.YouTubeApiException;
+import com.lucasmanoel.ouvirfrase.model.VideoDescartado;
+import com.lucasmanoel.ouvirfrase.repository.VideoDescartadoRepository;
 import com.lucasmanoel.ouvirfrase.repository.VideoRepository;
 import com.lucasmanoel.ouvirfrase.service.IndexadorDeVideo;
 import lombok.extern.slf4j.Slf4j;
@@ -12,6 +14,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 
 import java.nio.file.Path;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -21,6 +24,7 @@ import java.util.Optional;
 /**
  * Orquestra a ingestão: pasta de CSVs -> filtro embeddable -> legenda -> índice.
  * Problema do vídeo (sem legenda, não incorporável...) = descarta e segue.
+ * Todo descarte é gravado em {@code video_descartado}: nas rodadas seguintes o vídeo nem chega ao filtro.
  * Falha de infraestrutura (FalhaNaBuscaDeLegendaException, YouTubeApiException) = para tudo,
  * mas devolve o relatório parcial dentro de {@link IngestaoInterrompidaException}.
  */
@@ -34,6 +38,7 @@ public class IngestaoService {
     private final LegendaProvider legendaProvider;
     private final IndexadorDeVideo indexador;
     private final VideoRepository videoRepository;
+    private final VideoDescartadoRepository descartadoRepository;
     private final long pausaMs;
     private final int limite;
     private final String idiomaDeTraducao;
@@ -43,6 +48,7 @@ public class IngestaoService {
                            LegendaProvider legendaProvider,
                            IndexadorDeVideo indexador,
                            VideoRepository videoRepository,
+                           VideoDescartadoRepository descartadoRepository,
                            @Value("${ingestao.pausa-ms:1500}") long pausaMs,
                            @Value("${ingestao.limite:0}") int limite,
                            @Value("${ingestao.traduzir:}") String idiomaDeTraducao) {
@@ -51,6 +57,7 @@ public class IngestaoService {
         this.legendaProvider = legendaProvider;
         this.indexador = indexador;
         this.videoRepository = videoRepository;
+        this.descartadoRepository = descartadoRepository;
         this.pausaMs = pausaMs;
         this.limite = limite;
         this.idiomaDeTraducao = idiomaDeTraducao == null ? "" : idiomaDeTraducao.trim();
@@ -62,6 +69,7 @@ public class IngestaoService {
         List<VideoSemente> novas = new ArrayList<>();
         List<VideoSemente> semTraducao = new ArrayList<>();
         int jaIndexados = 0;
+        int jaDescartados = 0;
         for (VideoSemente s : sementes) {
             if (videoRepository.existsByYoutubeId(s.youtubeId())) {
                 jaIndexados++;
@@ -69,6 +77,8 @@ public class IngestaoService {
                 if (precisaTraduzir(s)) {
                     semTraducao.add(s);
                 }
+            } else if (descartadoRepository.existsById(s.youtubeId())) {
+                jaDescartados++;
             } else {
                 novas.add(s);
             }
@@ -81,6 +91,7 @@ public class IngestaoService {
         try {
             ResultadoFiltro filtrado = filtro.filtrar(novas);
             descartados.putAll(filtrado.descartados());
+            filtrado.descartados().forEach(this::registrarDescarte);
 
             List<VideoSemente> aprovados = filtrado.aprovados();
             for (int i = 0; i < aprovados.size(); i++) {
@@ -124,21 +135,21 @@ public class IngestaoService {
             }
         } catch (FalhaNaBuscaDeLegendaException | YouTubeApiException e) {
             throw new IngestaoInterrompidaException(
-                    new RelatorioIngestao(sementes.size(), indexados, jaIndexados, 0, descartados), e);
+                    new RelatorioIngestao(sementes.size(), indexados, jaIndexados, jaDescartados, 0, descartados), e);
         }
         if (!idiomaDeTraducao.isEmpty()) {
             log.info("Traduzidos agora para '{}': {}", idiomaDeTraducao, traduzidos);
         }
-        return new RelatorioIngestao(sementes.size(), indexados, jaIndexados, adiados, descartados);
+        return new RelatorioIngestao(sementes.size(), indexados, jaIndexados, jaDescartados, adiados, descartados);
     }
 
     private boolean precisaTraduzir(VideoSemente semente) {
         if (idiomaDeTraducao.isEmpty() || semente.idioma().equalsIgnoreCase(idiomaDeTraducao)) {
             return false;
         }
-        // vídeo recém-indexado entra aqui já sem tradução
+        // vídeo recém-indexado entra aqui já sem tradução; legenda automática não tem tradução (só a manual)
         return videoRepository.findByYoutubeId(semente.youtubeId())
-                .map(v -> v.getTraducaoIdioma() == null)
+                .map(v -> v.getTraducaoIdioma() == null && !v.isLegendaAutomatica())
                 .orElse(true);
     }
 
@@ -176,6 +187,12 @@ public class IngestaoService {
     private void descartar(Map<VideoSemente, MotivoDescarte> descartados, VideoSemente video, MotivoDescarte motivo) {
         log.warn("Vídeo descartado [{}] {}: {}", video.youtubeId(), video.titulo(), motivo);
         descartados.put(video, motivo);
+        registrarDescarte(video, motivo);
+    }
+
+    /** Grava na hora, para que uma interrupção (ex.: 429) não perca o que já foi decidido. */
+    private void registrarDescarte(VideoSemente video, MotivoDescarte motivo) {
+        descartadoRepository.save(new VideoDescartado(video.youtubeId(), motivo.name(), LocalDateTime.now()));
     }
 
     private void pausar() {

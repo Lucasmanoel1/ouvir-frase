@@ -2,7 +2,8 @@ package com.lucasmanoel.ouvirfrase.service;
 
 import com.lucasmanoel.ouvirfrase.dto.RespostaBusca;
 import com.lucasmanoel.ouvirfrase.dto.ResultadoBusca;
-import com.lucasmanoel.ouvirfrase.dto.TrechoLegenda;
+import com.lucasmanoel.ouvirfrase.ingestao.indexacao.IndexadorDeVideo;
+import com.lucasmanoel.ouvirfrase.ingestao.legenda.TrechoLegenda;
 import com.lucasmanoel.ouvirfrase.repository.OcorrenciaRepository;
 import com.lucasmanoel.ouvirfrase.repository.TrechoRepository;
 import com.lucasmanoel.ouvirfrase.repository.VideoRepository;

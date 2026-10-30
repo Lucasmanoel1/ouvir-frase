@@ -1,7 +1,7 @@
 package com.lucasmanoel.ouvirfrase.ingestao;
 
-import com.lucasmanoel.ouvirfrase.exception.IngestaoInterrompidaException;
-import com.lucasmanoel.ouvirfrase.exception.YouTubeApiException;
+import com.lucasmanoel.ouvirfrase.ingestao.youtube.DescobertaDeCanal;
+import com.lucasmanoel.ouvirfrase.ingestao.youtube.YouTubeApiException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;

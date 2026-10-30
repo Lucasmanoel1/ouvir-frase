@@ -1,5 +1,7 @@
 package com.lucasmanoel.ouvirfrase.ingestao;
 
+import com.lucasmanoel.ouvirfrase.ingestao.catalogo.VideoSemente;
+import com.lucasmanoel.ouvirfrase.ingestao.youtube.YouTubeDataClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Profile;

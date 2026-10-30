@@ -1,6 +1,8 @@
 package com.lucasmanoel.ouvirfrase.ingestao;
 
-import com.lucasmanoel.ouvirfrase.exception.YouTubeApiException;
+import com.lucasmanoel.ouvirfrase.ingestao.catalogo.VideoSemente;
+import com.lucasmanoel.ouvirfrase.ingestao.youtube.YouTubeApiException;
+import com.lucasmanoel.ouvirfrase.ingestao.youtube.YouTubeDataClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

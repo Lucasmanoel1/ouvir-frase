@@ -83,29 +83,4 @@ class YoutubeTranscriptLegendaProviderTest {
         assertThatExceptionOfType(FalhaNaBuscaDeLegendaException.class)
                 .isThrownBy(() -> provider.buscar(ID, "en"));
     }
-
-    @Test
-    void deveBuscarATraducaoQuandoOVideoPermite() throws Exception {
-        Transcript traduzida = org.mockito.Mockito.mock(Transcript.class);
-        when(api.listTranscripts(ID)).thenReturn(lista);
-        when(lista.findManualTranscript("en")).thenReturn(transcript);
-        when(transcript.isTranslatable()).thenReturn(true);
-        when(transcript.getTranslationLanguages()).thenReturn(java.util.Set.of("pt"));
-        when(transcript.translate("pt")).thenReturn(traduzida);
-        when(traduzida.fetch()).thenReturn(new TranscriptContent(List.of(
-                new TranscriptContent.Fragment("olá", 1.5, 2.0))));
-
-        assertThat(provider.buscarTraducao(ID, "en", "pt"))
-                .contains(List.of(new TrechoLegenda("olá", 1.5, 2.0)));
-    }
-
-    @Test
-    void deveDevolverVazioQuandoOIdiomaAlvoNaoEstaDisponivel() throws Exception {
-        when(api.listTranscripts(ID)).thenReturn(lista);
-        when(lista.findManualTranscript("en")).thenReturn(transcript);
-        when(transcript.isTranslatable()).thenReturn(true);
-        when(transcript.getTranslationLanguages()).thenReturn(java.util.Set.of("es"));
-
-        assertThat(provider.buscarTraducao(ID, "en", "pt")).isEmpty();
-    }
 }

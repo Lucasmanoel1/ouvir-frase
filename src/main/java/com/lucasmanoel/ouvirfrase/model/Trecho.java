@@ -26,5 +26,4 @@ public class Trecho {
     private String texto;
     private Double inicioSeg;
     private Double duracaoSeg;
-    private String traducao;
 }

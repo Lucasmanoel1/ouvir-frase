@@ -6,7 +6,6 @@ import com.lucasmanoel.ouvirfrase.ingestao.indexacao.IndexadorDeVideo;
 import com.lucasmanoel.ouvirfrase.ingestao.legenda.FalhaNaBuscaDeLegendaException;
 import com.lucasmanoel.ouvirfrase.ingestao.legenda.LegendaBaixada;
 import com.lucasmanoel.ouvirfrase.ingestao.legenda.LegendaProvider;
-import com.lucasmanoel.ouvirfrase.ingestao.legenda.TrechoLegenda;
 import com.lucasmanoel.ouvirfrase.ingestao.youtube.YouTubeApiException;
 import com.lucasmanoel.ouvirfrase.model.VideoDescartado;
 import com.lucasmanoel.ouvirfrase.repository.VideoDescartadoRepository;
@@ -44,7 +43,6 @@ public class IngestaoService {
     private final VideoDescartadoRepository descartadoRepository;
     private final long pausaMs;
     private final int limite;
-    private final String idiomaDeTraducao;
 
     public IngestaoService(CatalogoDeVideos catalogo,
                            FiltroEmbeddable filtro,
@@ -53,8 +51,7 @@ public class IngestaoService {
                            VideoRepository videoRepository,
                            VideoDescartadoRepository descartadoRepository,
                            @Value("${ingestao.pausa-ms:1500}") long pausaMs,
-                           @Value("${ingestao.limite:0}") int limite,
-                           @Value("${ingestao.traduzir:}") String idiomaDeTraducao) {
+                           @Value("${ingestao.limite:0}") int limite) {
         this.catalogo = catalogo;
         this.filtro = filtro;
         this.legendaProvider = legendaProvider;
@@ -63,23 +60,18 @@ public class IngestaoService {
         this.descartadoRepository = descartadoRepository;
         this.pausaMs = pausaMs;
         this.limite = limite;
-        this.idiomaDeTraducao = idiomaDeTraducao == null ? "" : idiomaDeTraducao.trim();
     }
 
     public RelatorioIngestao executar(Path dados) {
         List<VideoSemente> sementes = catalogo.carregar(dados);
 
         List<VideoSemente> novas = new ArrayList<>();
-        List<VideoSemente> semTraducao = new ArrayList<>();
         int jaIndexados = 0;
         int jaDescartados = 0;
         for (VideoSemente s : sementes) {
             if (videoRepository.existsByYoutubeId(s.youtubeId())) {
                 jaIndexados++;
                 completarCanal(s);
-                if (precisaTraduzir(s)) {
-                    semTraducao.add(s);
-                }
             } else if (descartadoRepository.existsById(s.youtubeId())) {
                 jaDescartados++;
             } else {
@@ -90,7 +82,6 @@ public class IngestaoService {
         Map<VideoSemente, MotivoDescarte> descartados = new LinkedHashMap<>();
         int indexados = 0;
         int adiados = 0;
-        int traduzidos = 0;
         try {
             ResultadoFiltro filtrado = filtro.filtrar(novas);
             descartados.putAll(filtrado.descartados());
@@ -122,56 +113,13 @@ public class IngestaoService {
                             automatica ? " (legenda automática)" : "", ocorrencias);
                 } catch (IllegalArgumentException e) {
                     descartar(descartados, video, MotivoDescarte.SEM_PALAVRAS);
-                    continue;
                 }
-                if (precisaTraduzir(video)) {
-                    traduzidos += traduzir(video);
-                }
-            }
-
-            // vídeos indexados antes da tradução existir: completa só a tradução
-            for (int i = 0; i < semTraducao.size() && (limite <= 0 || i < limite); i++) {
-                traduzidos += traduzir(semTraducao.get(i));
-            }
-            if (limite > 0 && semTraducao.size() > limite) {
-                log.info("Tradução adiada pelo limite: {} vídeos (rode de novo)", semTraducao.size() - limite);
             }
         } catch (FalhaNaBuscaDeLegendaException | YouTubeApiException e) {
             throw new IngestaoInterrompidaException(
                     new RelatorioIngestao(sementes.size(), indexados, jaIndexados, jaDescartados, 0, descartados), e);
         }
-        if (!idiomaDeTraducao.isEmpty()) {
-            log.info("Traduzidos agora para '{}': {}", idiomaDeTraducao, traduzidos);
-        }
         return new RelatorioIngestao(sementes.size(), indexados, jaIndexados, jaDescartados, adiados, descartados);
-    }
-
-    private boolean precisaTraduzir(VideoSemente semente) {
-        if (idiomaDeTraducao.isEmpty() || semente.idioma().equalsIgnoreCase(idiomaDeTraducao)) {
-            return false;
-        }
-        // vídeo recém-indexado entra aqui já sem tradução; legenda automática não tem tradução (só a manual)
-        return videoRepository.findByYoutubeId(semente.youtubeId())
-                .map(v -> v.getTraducaoIdioma() == null && !v.isLegendaAutomatica())
-                .orElse(true);
-    }
-
-    /** Devolve 1 se o vídeo ganhou tradução. Falha de rede sobe e interrompe a ingestão, como na legenda. */
-    private int traduzir(VideoSemente video) {
-        pausar();
-        Optional<List<TrechoLegenda>> traduzida =
-                legendaProvider.buscarTraducao(video.youtubeId(), video.idioma(), idiomaDeTraducao);
-        if (traduzida.isEmpty()) {
-            indexador.marcarSemTraducao(video.youtubeId());
-            return 0;
-        }
-        double taxa = indexador.aplicarTraducao(video.youtubeId(), idiomaDeTraducao, traduzida.get());
-        if (taxa < 0.9) {
-            log.warn("Tradução [{}] {}: só {}% dos trechos casaram", video.youtubeId(), video.titulo(), Math.round(taxa * 100));
-        } else {
-            log.info("Traduzido [{}] {}: {}% dos trechos", video.youtubeId(), video.titulo(), Math.round(taxa * 100));
-        }
-        return 1;
     }
 
     /** Vídeos indexados antes da coluna 'canal' existir ganham o canal ao reaparecer no catálogo. */

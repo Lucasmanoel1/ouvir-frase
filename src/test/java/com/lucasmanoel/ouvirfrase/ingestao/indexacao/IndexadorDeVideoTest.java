@@ -121,20 +121,4 @@ class IndexadorDeVideoTest {
         assertThat(trechoRepository.findAll(Sort.by("ordem")).get(0).getTexto())
                 .isEqualTo("I really love");
     }
-
-    @Test
-    void deveGravarATraducaoNosTrechosEMarcarOVideo() {
-        indexador.indexar("trad123", "Teste", "en", List.of(
-                new TrechoLegenda("hello there", 1.0, 2.0),
-                new TrechoLegenda("how are you", 3.0, 2.0)));
-
-        double taxa = indexador.aplicarTraducao("trad123", "pt", List.of(
-                new TrechoLegenda("olá", 1.0, 2.0),
-                new TrechoLegenda("como vai você", 3.0, 2.0)));
-
-        assertThat(taxa).isEqualTo(1.0);
-        assertThat(trechoRepository.findByVideoYoutubeIdOrderByOrdem("trad123"))
-                .extracting(Trecho::getTraducao).containsExactly("olá", "como vai você");
-        assertThat(videoRepository.findByYoutubeId("trad123").orElseThrow().getTraducaoIdioma()).isEqualTo("pt");
-    }
 }

@@ -227,6 +227,9 @@ mark {
 #titulo { flex: 1; min-width: 0; color: var(--suave); font-size: .85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .btn.mini-btn { flex: none; width: 32px; height: 32px; padding: 0; box-shadow: 2px 2px 0 var(--tinta); }
 .btn.mini-btn[hidden] { display: none; }
+.btn.mini-btn.com-rotulo { width: auto; padding: 0 12px; gap: 6px; font-size: .82rem; font-weight: 600; }
+.btn.mini-btn.com-rotulo [hidden] { display: none; }
+.btn.mini-btn:disabled { cursor: progress; opacity: .6; }
 .btn.mini-btn[aria-pressed="true"] { background: var(--laranja-claro); }
 .selo {
   display: inline-block; margin-bottom: 8px; padding: 2px 10px;

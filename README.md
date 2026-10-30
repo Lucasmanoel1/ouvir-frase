@@ -182,6 +182,7 @@ Página estática (HTML, CSS e JS puro, sem build) servida pelo próprio Spring.
 - **Tela inicial:** busca, seletor de idioma, exemplos, buscas recentes (guardadas só no navegador) e o ritmo "Busque. Ouça. Repita.".
 - **Estúdio (depois da busca):** player com barra de progresso do trecho, a dock de controles, a legenda com a frase destacada, a faixa de prática e a lista de todas as ocorrências (miniatura, trecho, selo de frase aproximada). No desktop tudo cabe numa tela sem rolar; no celular os controles ficam acima da dobra.
 - **Legenda que acompanha o vídeo:** o cartão mostra a fala do instante atual (também com o vídeo pausado ou depois de arrastar a barra do YouTube), com a frase buscada destacada. Se a API da legenda falhar, o cartão continua mostrando o trecho do resultado.
+- **Tradução no navegador:** abaixo da fala, em fonte menor, a tradução para português. Ela é feita **no seu navegador**, pela [Translator API](https://developer.chrome.com/docs/ai/translator-api) do Chrome: sem servidor, sem custo e sem limite de requisições. Na primeira vez o botão com o ícone de tradução mostra "Ativar tradução" e baixa o modelo do idioma (com o progresso na tela); depois liga e desliga (a escolha fica guardada no navegador) e traduz a fala atual e as duas seguintes. Onde a API não existe, o botão e a linha somem.
 - **Selo "Legenda automática":** aparece no estúdio quando o trecho vem de legenda gerada por reconhecimento de voz, que pode ter erros.
 - **Dock do player:** play/pause, voltar e avançar 2 s, loop do trecho (volta ao início ao chegar em `fimSeg`) e velocidade de 0,25× a 1,5× (lembrada no navegador).
 - **Pronúncia:** o botão de microfone fica sempre visível. O usuário repete a frase buscada (ou o trecho inteiro); o navegador reconhece a fala (Web Speech API) e a página compara palavra por palavra, com porcentagem e as palavras que faltaram. Não há nada no servidor. Só funciona no Chrome e no Edge e exige HTTPS fora do `localhost`.
@@ -233,6 +234,7 @@ docs/                          # identidade visual e roteiro de vídeo
 <summary><strong>Legenda</strong></summary>
 
 - Vídeos sem legenda manual entram com a **legenda automática** do YouTube (reconhecimento de voz: sem pontuação e com erros ocasionais). A origem fica em `video.legenda_automatica`, a interface mostra o selo "Legenda automática" e, na busca, os vídeos de legenda manual vêm antes. Vídeo sem nenhuma das duas não entra.
+- A tradução só funciona no **Chrome ou Edge no desktop** (versão 138 ou mais recente); não existe em celulares, Firefox nem Safari. É tradução automática de modelo local: serve para entender a fala, mas pode errar em expressões e gírias.
 - A legenda de um vídeo inteiro vai de uma vez para o navegador (~60 KB para 18 minutos, comprimida pelo servidor); vídeos de horas ficariam pesados.
 - A biblioteca de legendas usa uma API não documentada do YouTube e pode parar de funcionar; por isso fica atrás da interface `LegendaProvider`.
 - `embeddable=true` não garante que o vídeo toque em todos os países.

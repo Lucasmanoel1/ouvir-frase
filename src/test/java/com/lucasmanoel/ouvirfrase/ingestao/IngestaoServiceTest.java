@@ -7,7 +7,6 @@ import com.lucasmanoel.ouvirfrase.ingestao.legenda.FalhaNaBuscaDeLegendaExceptio
 import com.lucasmanoel.ouvirfrase.ingestao.legenda.LegendaBaixada;
 import com.lucasmanoel.ouvirfrase.ingestao.legenda.LegendaProvider;
 import com.lucasmanoel.ouvirfrase.ingestao.legenda.TrechoLegenda;
-import com.lucasmanoel.ouvirfrase.model.Video;
 import com.lucasmanoel.ouvirfrase.model.VideoDescartado;
 import com.lucasmanoel.ouvirfrase.repository.VideoDescartadoRepository;
 import com.lucasmanoel.ouvirfrase.repository.VideoRepository;
@@ -53,7 +52,7 @@ class IngestaoServiceTest {
 
     @BeforeEach
     void preparar() {
-        service = new IngestaoService(catalogo, filtro, legendaProvider, indexador, videoRepository, descartadoRepository, 0, 0, "");
+        service = new IngestaoService(catalogo, filtro, legendaProvider, indexador, videoRepository, descartadoRepository, 0, 0);
     }
 
     @Test
@@ -113,40 +112,5 @@ class IngestaoServiceTest {
 
         verify(legendaProvider, never()).buscar(C.youtubeId(), "en");
         verifyNoInteractions(indexador);
-    }
-
-    @Test
-    void deveCompletarSoATraducaoDeVideoJaIndexadoSemTraducao() {
-        IngestaoService comTraducao = new IngestaoService(
-                catalogo, filtro, legendaProvider, indexador, videoRepository, descartadoRepository, 0, 0, "pt");
-        Video indexado = new Video();
-        List<TrechoLegenda> traduzidos = List.of(new TrechoLegenda("olá mundo", 1.0, 2.0));
-        when(catalogo.carregar(DADOS)).thenReturn(List.of(A));
-        when(videoRepository.existsByYoutubeId(A.youtubeId())).thenReturn(true);
-        when(videoRepository.findByYoutubeId(A.youtubeId())).thenReturn(Optional.of(indexado));
-        when(filtro.filtrar(List.of())).thenReturn(new ResultadoFiltro(List.of(), Map.of()));
-        when(legendaProvider.buscarTraducao(A.youtubeId(), "en", "pt")).thenReturn(Optional.of(traduzidos));
-        when(indexador.aplicarTraducao(A.youtubeId(), "pt", traduzidos)).thenReturn(1.0);
-
-        comTraducao.executar(DADOS);
-
-        verify(indexador).aplicarTraducao(A.youtubeId(), "pt", traduzidos);
-        verify(legendaProvider, never()).buscar(A.youtubeId(), "en");
-    }
-
-    @Test
-    void naoDeveTentarTraducaoDeVideoComLegendaAutomatica() {
-        IngestaoService comTraducao = new IngestaoService(
-                catalogo, filtro, legendaProvider, indexador, videoRepository, descartadoRepository, 0, 0, "pt");
-        Video automatico = new Video();
-        automatico.setLegendaAutomatica(true);
-        when(catalogo.carregar(DADOS)).thenReturn(List.of(A));
-        when(videoRepository.existsByYoutubeId(A.youtubeId())).thenReturn(true);
-        when(videoRepository.findByYoutubeId(A.youtubeId())).thenReturn(Optional.of(automatico));
-        when(filtro.filtrar(List.of())).thenReturn(new ResultadoFiltro(List.of(), Map.of()));
-
-        comTraducao.executar(DADOS);
-
-        verifyNoInteractions(legendaProvider);
     }
 }

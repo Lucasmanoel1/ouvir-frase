@@ -1,18 +1,22 @@
 (() => {
   const $ = (id) => document.getElementById(id);
   const form = $('form-busca'), campo = $('frase'), status = $('status');
-  const selo = $('selo'), seloAuto = $('selo-auto'), legenda = $('legenda'), titulo = $('titulo'), contador = $('contador');
+  const selo = $('selo'), seloAuto = $('selo-auto'), legenda = $('legenda'), contador = $('contador');
   const lista = $('ocorrencias'), btnAnterior = $('anterior'), btnProximo = $('proximo');
   const idiomaSel = $('idioma'), pilula = $('pilula-idioma');
 
   const CHAVE_HISTORICO = 'ouvirfrase.historico';
   const CHAVE_TRADUCAO = 'ouvirfrase.traducao';
+  const IDIOMA_ALVO = 'pt'; // a tradução é sempre para português
   const RECUO_SEG = 3; // quanto o backend recua o início do resultado
   const EXEMPLOS = { en: ['thank you very much', 'you know what', 'a lot of'] };
 
   let resultados = [], indice = 0, frase = '', idioma = 'en';
   let player = null, ytPronto = false, pendente = null;
-  let cues = null, cueAtual = -2, temTraducao = false, traducaoLigada = lerTraducao();
+  let cues = null, cueAtual = -2, traducaoLigada = lerTraducao();
+  // Tradução no navegador (Translator API do Chrome). estado: indisponivel | inativo | baixando | pronto
+  const trad = { estado: 'indisponivel', origem: null, instancia: null, progresso: 0, consultando: null, gesto: false };
+  const traducoes = new Map(); // 'origem|texto' -> Promise da tradução
   const legendas = new Map(); // youtubeId -> Promise da legenda completa do vídeo
 
   const estado = (nome) => { document.body.dataset.estado = nome; };
@@ -87,32 +91,125 @@
     // palavras soltas (frase aproximada) só dentro do trecho do resultado, para não marcar "the" em toda fala
     const soltas = !!c && r.exata === false && c.inicioSeg >= r.inicioSeg + RECUO_SEG - 0.1 && c.inicioSeg < r.fimSeg;
     renderLegenda(legenda, c ? c.texto : '', soltas);
-    $('traducao').textContent = c && c.traducao ? c.traducao : '';
+    mostrarTraducao(i);
   }
 
+  // --- tradução no navegador ---
+  const origemDe = (cod) => (cod === 'zh-CN' ? 'zh' : cod.split('-')[0]);
+
   function atualizarTraducao() {
-    const botao = $('traducao-botao');
-    botao.hidden = !temTraducao;
-    botao.setAttribute('aria-pressed', String(traducaoLigada));
-    const rotulo = traducaoLigada ? 'Ocultar a tradução' : 'Mostrar a tradução';
+    const botao = $('traducao-botao'), linha = $('traducao');
+    const { estado } = trad;
+    const pronto = estado === 'pronto';
+    botao.hidden = estado === 'indisponivel';
+    botao.disabled = estado === 'baixando';
+    botao.classList.toggle('com-rotulo', estado === 'inativo');
+    $('traducao-rotulo').hidden = estado !== 'inativo';
+    botao.setAttribute('aria-pressed', String(pronto && traducaoLigada));
+    const rotulo = estado === 'inativo' ? 'Ativar tradução'
+      : estado === 'baixando' ? 'Baixando o modelo de tradução'
+      : traducaoLigada ? 'Ocultar a tradução' : 'Mostrar a tradução';
     botao.setAttribute('aria-label', rotulo);
     botao.title = rotulo;
-    $('traducao').hidden = !(temTraducao && traducaoLigada);
+    linha.hidden = !(estado === 'baixando' || (pronto && traducaoLigada));
+    if (estado === 'baixando') linha.textContent = 'Baixando o modelo… ' + Math.round(trad.progresso * 100) + '%';
+  }
+
+  // Vê se o par origem->português existe neste navegador; com o modelo já baixado e a tradução ligada, cria sozinho.
+  async function prepararTraducao(codigo, gesto = false) {
+    const origem = origemDe(codigo);
+    if (trad.origem === origem && (trad.estado === 'pronto' || trad.estado === 'baixando')) return;
+    if (trad.consultando === origem) { if (gesto) trad.gesto = true; return; } // já perguntando ao Chrome
+    trad.origem = origem;
+    trad.gesto = gesto;
+    trad.instancia = null;
+    trad.estado = 'indisponivel';
+    atualizarTraducao();
+    if (!('Translator' in self) || origem === IDIOMA_ALVO) return;
+    trad.consultando = origem;
+    try {
+      const a = await Translator.availability({ sourceLanguage: origem, targetLanguage: IDIOMA_ALVO });
+      if (trad.consultando === origem) trad.consultando = null;
+      if (trad.origem !== origem || trad.estado !== 'indisponivel') return;
+      if (a === 'unavailable') return;
+      trad.estado = 'inativo';
+      atualizarTraducao();
+      // baixar o modelo exige um gesto do usuário: a busca (Enter ou clique) já conta e adianta o download
+      if (traducaoLigada && (a === 'available' || (a === 'downloadable' && trad.gesto))) criarTradutor(origem);
+    } catch (e) { if (trad.consultando === origem) trad.consultando = null; /* fica indisponível */ }
+  }
+
+  // Com o modelo por baixar, precisa ser chamado direto de um clique do usuário.
+  async function criarTradutor(origem) {
+    trad.estado = 'baixando';
+    trad.progresso = 0;
+    atualizarTraducao();
+    try {
+      const instancia = await Translator.create({
+        sourceLanguage: origem, targetLanguage: IDIOMA_ALVO,
+        monitor(m) {
+          m.addEventListener('downloadprogress', (e) => {
+            trad.progresso = e.loaded;
+            if (trad.estado === 'baixando' && trad.origem === origem) atualizarTraducao();
+          });
+        },
+      });
+      if (trad.origem !== origem) { if (instancia.destroy) instancia.destroy(); return; }
+      trad.instancia = instancia;
+      trad.estado = 'pronto';
+    } catch (e) {
+      if (trad.origem === origem) { trad.estado = 'inativo'; trad.instancia = null; }
+    }
+    atualizarTraducao();
+    mostrarTraducao(cueAtual);
+  }
+
+  function falhaNaTraducao() {
+    if (trad.estado !== 'pronto') return;
+    trad.estado = 'inativo';
+    trad.instancia = null;
+    traducoes.clear();
+    $('traducao').textContent = '';
+    atualizarTraducao();
+  }
+
+  function traduzirTexto(texto) {
+    const chave = trad.origem + '|' + texto;
+    if (!traducoes.has(chave)) {
+      traducoes.set(chave, trad.instancia.translate(texto).catch((e) => {
+        traducoes.delete(chave);
+        falhaNaTraducao();
+        throw e;
+      }));
+    }
+    return traducoes.get(chave);
+  }
+
+  // Traduz a fala atual e já deixa as duas seguintes na fila (a API traduz uma de cada vez).
+  function mostrarTraducao(i) {
+    const linha = $('traducao');
+    if (trad.estado !== 'pronto') return;
+    linha.textContent = '';
+    if (!traducaoLigada || !cues || i < 0 || !cues[i]) return;
+    const origem = trad.origem;
+    traduzirTexto(cues[i].texto).then((t) => {
+      if (cueAtual === i && trad.origem === origem && trad.estado === 'pronto') linha.textContent = t;
+    }, () => {});
+    for (let k = 1; k <= 2; k++) {
+      if (cues[i + k]) traduzirTexto(cues[i + k].texto).catch(() => {});
+    }
   }
 
   function carregarLegendaDoVideo(r) {
     cues = null;
     cueAtual = -2;
-    temTraducao = false;
-    $('traducao').textContent = '';
-    atualizarTraducao();
+    if (trad.estado !== 'baixando') $('traducao').textContent = '';
+    prepararTraducao(idioma);
     buscarLegenda(r.youtubeId).then((l) => {
       const atual = resultados[indice];
       if (!l || !atual || atual.youtubeId !== r.youtubeId) return; // falhou (fica o trecho estático) ou o usuário já trocou
       cues = l;
       cueAtual = -2;
-      temTraducao = l.some((c) => c.traducao);
-      atualizarTraducao();
     });
   }
 
@@ -145,6 +242,7 @@
     frase = texto.trim();
     if (!frase) return;
     history.replaceState(null, '', '?q=' + encodeURIComponent(frase) + '&l=' + encodeURIComponent(idioma));
+    prepararTraducao(idioma, !!(navigator.userActivation && navigator.userActivation.isActive));
     const mantemEstudio = document.body.dataset.estado === 'resultados';
     if (mantemEstudio) {
       document.body.classList.add('ocupado');
@@ -242,7 +340,6 @@
     selo.textContent = 'Frase aproximada · ' + Math.round((r.pontuacao || 0) * 100) + '% das palavras';
     renderLegenda(legenda, r.legenda || '');
     carregarLegendaDoVideo(r);
-    titulo.textContent = r.titulo || '';
     contador.textContent = (indice + 1) + ' de ' + resultados.length;
     btnAnterior.disabled = indice === 0;
     btnProximo.disabled = indice === resultados.length - 1;
@@ -372,9 +469,17 @@
   btnProximo.addEventListener('click', () => navegar(1));
   $('copiar').addEventListener('click', copiarLink);
   $('traducao-botao').addEventListener('click', () => {
-    traducaoLigada = !traducaoLigada;
+    if (trad.estado === 'inativo') {
+      traducaoLigada = true;
+      criarTradutor(trad.origem); // direto do clique: o Chrome exige para baixar o modelo
+    } else if (trad.estado === 'pronto') {
+      traducaoLigada = !traducaoLigada;
+    } else {
+      return;
+    }
     try { localStorage.setItem(CHAVE_TRADUCAO, traducaoLigada ? 'sim' : 'nao'); } catch (e) { /* ignora */ }
     atualizarTraducao();
+    mostrarTraducao(cueAtual);
   });
   document.addEventListener('keydown', (e) => {
     if (document.body.dataset.estado !== 'resultados') return;

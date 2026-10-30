@@ -17,7 +17,7 @@ public class LegendaService {
     @Transactional(readOnly = true)
     public List<LegendaTrecho> legendaDoVideo(String youtubeId) {
         return trechoRepository.findByVideoYoutubeIdOrderByOrdem(youtubeId).stream()
-                .map(t -> new LegendaTrecho(t.getTexto(), t.getTraducao(), t.getInicioSeg(), t.getDuracaoSeg()))
+                .map(t -> new LegendaTrecho(t.getTexto(), t.getInicioSeg(), t.getDuracaoSeg()))
                 .toList();
     }
 }

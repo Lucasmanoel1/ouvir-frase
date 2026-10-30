@@ -43,8 +43,8 @@ CSV de vídeos → filtro embeddable → legenda → índice invertido (PostgreS
 
 | Tabela | Papel |
 |---|---|
-| `video` | Um vídeo indexado (`youtube_id` único), com canal, idioma, origem da legenda (`legenda_automatica`) e idioma da tradução (`traducao_idioma`). |
-| `trecho` | Cada trecho de legenda: texto, início, duração e `traducao`. |
+| `video` | Um vídeo indexado (`youtube_id` único), com canal, idioma, origem da legenda (`legenda_automatica`). |
+| `trecho` | Cada trecho de legenda: texto, início, duração. |
 | `ocorrencia` | **O índice:** uma linha por palavra, com `palavra`, `posicao` e `inicio_seg`. |
 | `video_descartado` | Vídeos que a ingestão já rejeitou (`youtube_id`, `motivo`, `data`), para não reconsultar. |
 
@@ -102,18 +102,10 @@ Isso só grava ou atualiza o CSV (`data/en/ted.csv`, no exemplo) com vídeos que
 
 ### 2. Indexar
 
-Os dois comandos abaixo funcionam no PowerShell e no bash. **Mantenha as aspas:** no PowerShell, sem elas o `-D…=` quebra no ponto.
-
-#### Ingestão normal (sem tradução)
+O comando abaixo funciona no PowerShell e no bash. **Mantenha as aspas:** no PowerShell, sem elas o `-D…=` quebra no ponto.
 
 ```bash
 ./mvnw "-Dspring-boot.run.profiles=ingestao" "-Dspring-boot.run.arguments=--ingestao.limite=15 --ingestao.pausa-ms=6000" spring-boot:run
-```
-
-#### Ingestão com tradução para português
-
-```bash
-./mvnw "-Dspring-boot.run.profiles=ingestao" "-Dspring-boot.run.arguments=--ingestao.traduzir=pt --ingestao.pausa-ms=6000 --ingestao.limite=15" spring-boot:run
 ```
 
 | Parâmetro | O que faz | Padrão |
@@ -122,7 +114,6 @@ Os dois comandos abaixo funcionam no PowerShell e no bash. **Mantenha as aspas:*
 | `-Dspring-boot.run.arguments="…"` | Repassa os argumentos abaixo para a aplicação. | — |
 | `--ingestao.limite=N` | Processa no máximo N vídeos por execução. O resto aparece como "adiados" no relatório; rode de novo para continuar. Só vídeos novos contam no limite; descartados em rodadas anteriores não. `0` = sem limite. | `0` |
 | `--ingestao.pausa-ms=N` | Pausa entre vídeos, em milissegundos. Pausa maior reduz o risco de bloqueio do IP; `6000` é o valor usado nos lotes. | `1500` |
-| `--ingestao.traduzir=pt` | Também baixa a tradução automática do YouTube para o idioma indicado e grava em `trecho.traducao`. Vazio = desligado. | vazio |
 | `--ingestao.dados=pasta` | Pasta raiz dos CSVs. | `data` |
 
 > [!WARNING]
@@ -145,16 +136,6 @@ Relatório da ingestão
   Adiados pelo limite (rode de novo): 164
   Descartados agora: 0
 ```
-
-### Tradução da legenda (opcional, experimental)
-
-Com `--ingestao.traduzir=pt`, cada vídeo também recebe a **tradução automática do YouTube** (`Transcript.translate`), gravada em `trecho.traducao`. Vale para vídeos novos e, na mesma execução, para os **já indexados que ainda não têm tradução** (só os que estão nos CSVs).
-
-- A tradução é casada com os trechos por **tempo de início** (tolerância de 1 s). O log mostra a porcentagem de trechos que casaram por vídeo, com aviso abaixo de 90%.
-- Só vídeos com **legenda manual** podem ser traduzidos: os de legenda automática são ignorados nessa etapa, sem gastar requisição. Vídeo manual que não permite tradução é marcado (`video.traducao_idioma = '-'`) e não é tentado de novo.
-- Cada vídeo traduzido custa 1 a 2 requisições a mais. Rode em lotes, com pausa maior, repetindo até acabar.
-- **Limitação conhecida:** o download da tradução já devolveu `429` do YouTube mesmo com pausa de 6 s, enquanto o download normal da legenda funcionava. Por isso o recurso fica desligado por padrão.
-- Sem tradução, o front esconde a linha de tradução e o botão correspondente.
 
 ---
 
@@ -187,10 +168,10 @@ Uma pasta por idioma em `data/`: `en`, `es`, `fr`, `de`, `it`, `ja`, `ko`, `zh-C
 `GET /api/videos/{youtubeId}/legenda` devolve a legenda completa do vídeo, em ordem, para o front acompanhar o vídeo (com cache de 1 dia no navegador):
 
 ```json
-[ { "texto": "so what do you think", "traducao": "então o que você acha", "inicioSeg": 12.4, "duracaoSeg": 2.1 } ]
+[ { "texto": "so what do you think", "inicioSeg": 12.4, "duracaoSeg": 2.1 } ]
 ```
 
-`traducao` é `null` quando o vídeo ainda não foi traduzido. Vídeo desconhecido: lista vazia.
+Vídeo desconhecido: lista vazia.
 
 ---
 
@@ -200,7 +181,8 @@ Página estática (HTML, CSS e JS puro, sem build) servida pelo próprio Spring.
 
 - **Tela inicial:** busca, seletor de idioma, exemplos, buscas recentes (guardadas só no navegador) e o ritmo "Busque. Ouça. Repita.".
 - **Estúdio (depois da busca):** player com barra de progresso do trecho, a dock de controles, a legenda com a frase destacada, a faixa de prática e a lista de todas as ocorrências (miniatura, trecho, selo de frase aproximada). No desktop tudo cabe numa tela sem rolar; no celular os controles ficam acima da dobra.
-- **Legenda que acompanha o vídeo:** o cartão mostra a fala do instante atual (também com o vídeo pausado ou depois de arrastar a barra do YouTube), com a frase buscada destacada. Abaixo, em fonte menor, a tradução para português; o botão com o ícone de tradução liga e desliga (lembrado no navegador) e some nos vídeos sem tradução. Se a API da legenda falhar, o cartão continua mostrando o trecho do resultado.
+- **Legenda que acompanha o vídeo:** o cartão mostra a fala do instante atual (também com o vídeo pausado ou depois de arrastar a barra do YouTube), com a frase buscada destacada. Se a API da legenda falhar, o cartão continua mostrando o trecho do resultado.
+- **Tradução no navegador:** abaixo da fala, em fonte menor, a tradução para português. Ela é feita **no seu navegador**, pela [Translator API](https://developer.chrome.com/docs/ai/translator-api) do Chrome: sem servidor, sem custo e sem limite de requisições. Na primeira vez o botão com o ícone de tradução mostra "Ativar tradução" e baixa o modelo do idioma (com o progresso na tela); depois liga e desliga (a escolha fica guardada no navegador) e traduz a fala atual e as duas seguintes. Onde a API não existe, o botão e a linha somem.
 - **Selo "Legenda automática":** aparece no estúdio quando o trecho vem de legenda gerada por reconhecimento de voz, que pode ter erros.
 - **Dock do player:** play/pause, voltar e avançar 2 s, loop do trecho (volta ao início ao chegar em `fimSeg`) e velocidade de 0,25× a 1,5× (lembrada no navegador).
 - **Pronúncia:** o botão de microfone fica sempre visível. O usuário repete a frase buscada (ou o trecho inteiro); o navegador reconhece a fala (Web Speech API) e a página compara palavra por palavra, com porcentagem e as palavras que faltaram. Não há nada no servidor. Só funciona no Chrome e no Edge e exige HTTPS fora do `localhost`.
@@ -226,7 +208,7 @@ src/main/java/com/lucasmanoel/ouvirfrase/
   config/  controller/  service/  repository/  model/  dto/  exception/
   ingestao/                    # pipeline offline: CSV, filtro embeddable, legendas, runner
 src/main/resources/
-  db/migration/                # Flyway (V1 tabelas, V2 canal, V3 tradução, V4 legenda automática, V5 descartados)
+  db/migration/                # Flyway (V1 tabelas, V2 canal, V3 tradução, V4 legenda automática, V5 descartados, V6 remove a tradução)
   static/                      # front (HTML/CSS/JS puro: app, ferramentas, pronuncia; fonts/, icons.svg)
 data/<idioma>/<canal>.csv      # listas de vídeos da ingestão
 docs/                          # identidade visual e roteiro de vídeo
@@ -249,10 +231,10 @@ docs/                          # identidade visual e roteiro de vídeo
 </details>
 
 <details open>
-<summary><strong>Legenda e tradução</strong></summary>
+<summary><strong>Legenda</strong></summary>
 
 - Vídeos sem legenda manual entram com a **legenda automática** do YouTube (reconhecimento de voz: sem pontuação e com erros ocasionais). A origem fica em `video.legenda_automatica`, a interface mostra o selo "Legenda automática" e, na busca, os vídeos de legenda manual vêm antes. Vídeo sem nenhuma das duas não entra.
-- A tradução é **automática** (a do YouTube): serve para entender a fala, mas pode errar, principalmente em expressões e gírias. Só português por enquanto, e só para vídeos com legenda manual.
+- A tradução só funciona no **Chrome ou Edge no desktop** (versão 138 ou mais recente); não existe em celulares, Firefox nem Safari. É tradução automática de modelo local: serve para entender a fala, mas pode errar em expressões e gírias.
 - A legenda de um vídeo inteiro vai de uma vez para o navegador (~60 KB para 18 minutos, comprimida pelo servidor); vídeos de horas ficariam pesados.
 - A biblioteca de legendas usa uma API não documentada do YouTube e pode parar de funcionar; por isso fica atrás da interface `LegendaProvider`.
 - `embeddable=true` não garante que o vídeo toque em todos os países.

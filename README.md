@@ -70,13 +70,44 @@ docker compose up -d          # PostgreSQL na porta 5433
 
 As migrações do Flyway rodam na subida. O banco começa vazio: rode a ingestão (próxima seção).
 
+Para consultar o banco direto (por exemplo, conferir o que foi indexado):
+
+```bash
+docker compose exec db psql -U postgres -d ouvirfrase
+```
+
 ---
 
 ## Ingestão
 
-A ingestão roda **offline**, num perfil à parte (`ingestao`), e nunca por endpoint. O site em si não consulta o YouTube.
+A ingestão roda **offline**, num perfil à parte, e nunca no site publicado: o site em si não consulta o YouTube. Há dois jeitos de rodar: o **painel** local (cole o link do canal e pronto) ou a linha de comando (seções 1 e 2).
 
-### 1. Preparar
+### Jeito mais simples: o painel
+
+Uma página onde você cola o link de um canal e a ingestão roda sozinha. Ela só existe no seu computador: é o perfil `painel`, que escuta apenas em `127.0.0.1:8081`. O site publicado não tem essa página nem essa API.
+
+**Antes de subir:** o banco no ar (`docker compose up -d db`) e a chave da API no `.env` (veja [1. Preparar](#1-preparar)).
+
+1. Suba o painel. Mantenha as aspas e a ordem `ingestao,painel`:
+
+   ```bash
+   ./mvnw "-Dspring-boot.run.profiles=ingestao,painel" spring-boot:run
+   ```
+
+2. Abra <http://localhost:8081>.
+3. Cole o link do canal (`https://www.youtube.com/@TEDTalks`), escolha o idioma e clique em **Ingerir canal**.
+4. Acompanhe na tela. No fim aparece o relatório. Se sobrarem vídeos ("Faltam N vídeos"), clique em **Continuar** para o próximo lote.
+5. Terminou? `Ctrl+C` no terminal.
+
+Cada clique faz duas coisas: descobre os vídeos novos do canal (grava `data/<idioma>/<canal>.csv`, como o `--canal` da linha de comando) e indexa **um lote** desse canal (15 vídeos, com 6 s entre eles). Em **Opções** você muda quantos vídeos descobrir (padrão 100) e o tamanho do lote (padrão 15). Recarregar a página não interrompe nada: ela volta a mostrar o andamento.
+
+Se o YouTube bloquear o IP (`429`), a tela avisa e o que já foi indexado fica salvo. Espere **horas** e clique em **Tentar de novo** (veja o aviso mais abaixo).
+
+### Pela linha de comando
+
+O mesmo processo em dois passos, sem a página.
+
+#### 1. Preparar
 
 **Chave da API.** Crie uma chave da **YouTube Data API v3** (Google Cloud) e coloque em `.env` na raiz. O arquivo é ignorado pelo git e só é lido no perfil `ingestao`; a variável de ambiente `YOUTUBE_API_KEY` também serve.
 
@@ -100,7 +131,7 @@ Para **descobrir** os vídeos de um canal em vez de montar a lista à mão:
 
 Isso só grava ou atualiza o CSV (`data/en/ted.csv`, no exemplo) com vídeos que têm legenda (manual ou automática), duram 60 s ou mais e ainda não são conhecidos. **Revise o arquivo antes de indexar.**
 
-### 2. Indexar
+#### 2. Indexar
 
 O comando abaixo funciona no PowerShell e no bash. **Mantenha as aspas:** no PowerShell, sem elas o `-D…=` quebra no ponto.
 
@@ -177,7 +208,7 @@ Vídeo desconhecido: lista vazia.
 
 ## Front
 
-Página estática (HTML, CSS e JS puro, sem build) servida pelo próprio Spring. Identidade visual, cores, tipografia e voz em [`docs/identidade-visual.md`](docs/identidade-visual.md).
+Página estática (HTML, CSS e JavaScript em módulos ES nativos, sem build) servida pelo próprio Spring. Identidade visual, cores, tipografia e voz em [`docs/identidade-visual.md`](docs/identidade-visual.md).
 
 - **Tela inicial:** busca, seletor de idioma, exemplos, buscas recentes (guardadas só no navegador) e o ritmo "Busque. Ouça. Repita.".
 - **Estúdio (depois da busca):** player com barra de progresso do trecho, a dock de controles, a legenda com a frase destacada, a faixa de prática e a lista de todas as ocorrências (miniatura, trecho, selo de frase aproximada). No desktop tudo cabe numa tela sem rolar; no celular os controles ficam acima da dobra.
@@ -205,11 +236,18 @@ Testes unitários (Normalizador, estimador de tempo, leitor de CSV, filtro, prov
 
 ```
 src/main/java/com/lucasmanoel/ouvirfrase/
-  config/  controller/  service/  repository/  model/  dto/  exception/
-  ingestao/                    # pipeline offline: CSV, filtro embeddable, legendas, runner
+  controller/  service/  repository/  model/  dto/   # a API de busca (camadas)
+  ingestao/                    # pipeline offline (perfil "ingestao"): serviço, runner, filtro, IngestaoProperties
+    catalogo/                  #   leitura dos CSVs
+    youtube/                   #   YouTube Data API (YouTubeApi) e descoberta de vídeos de um canal
+    legenda/                   #   download da legenda (interface LegendaProvider)
+    indexacao/                 #   índice invertido: estimador de tempo e IndexadorDeVideo
+    painel/                    #   painel local (perfil "painel"): PainelDeIngestao, PainelController, SoLocalFilter
 src/main/resources/
   db/migration/                # Flyway (V1 tabelas, V2 canal, V3 tradução, V4 legenda automática, V5 descartados, V6 remove a tradução)
-  static/                      # front (HTML/CSS/JS puro: app, ferramentas, pronuncia; fonts/, icons.svg)
+  painel/                      # página do painel de ingestão (só é servida no perfil "painel")
+  static/                      # front (HTML/CSS e JS em módulos ES, sem build; fonts/, icons.svg)
+    js/                        #   app (orquestra), api, estudio, legenda, traducao, historico, idiomas, player, ferramentas, pronuncia...
 data/<idioma>/<canal>.csv      # listas de vídeos da ingestão
 docs/                          # identidade visual e roteiro de vídeo
 ```

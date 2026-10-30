@@ -18,6 +18,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -26,6 +27,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -113,5 +116,30 @@ class IngestaoServiceTest {
 
         verify(legendaProvider, never()).buscar(C.youtubeId(), "en");
         verifyNoInteractions(indexador);
+    }
+
+    @Test
+    void deveIndexarSoOCanalPedidoRespeitarOLoteEAvisarOProgresso() {
+        VideoSemente a = new VideoSemente("AAAAAAAAAAA", "en", "A", "ted");
+        VideoSemente b = new VideoSemente("BBBBBBBBBBB", "en", "B", "ted");
+        VideoSemente c = new VideoSemente("CCCCCCCCCCC", "en", "C", "ted");
+        VideoSemente outro = new VideoSemente("DDDDDDDDDDD", "en", "D", "vox");
+        List<TrechoLegenda> trechos = List.of(new TrechoLegenda("hello world", 1.0, 2.0));
+        when(catalogo.carregar(DADOS)).thenReturn(List.of(a, b, c, outro));
+        when(filtro.filtrar(List.of(a, b, c))).thenReturn(new ResultadoFiltro(List.of(a, b, c), Map.of()));
+        when(legendaProvider.buscar(a.youtubeId(), "en")).thenReturn(Optional.of(new LegendaBaixada(trechos, false)));
+        when(legendaProvider.buscar(b.youtubeId(), "en")).thenReturn(Optional.of(new LegendaBaixada(trechos, false)));
+        when(indexador.indexar(anyString(), anyString(), eq("en"), eq("ted"), eq(trechos), eq(false))).thenReturn(1);
+        List<String> avisos = new ArrayList<>();
+
+        RelatorioIngestao relatorio = service.executar("ted", 2, avisos::add);
+
+        assertThat(relatorio.total()).isEqualTo(3);
+        assertThat(relatorio.indexados()).isEqualTo(2);
+        assertThat(relatorio.adiados()).isEqualTo(1);
+        assertThat(avisos).containsExactly(
+                "Conferindo 3 vídeos novos no YouTube…", "Indexando 1 de 2: A", "Indexando 2 de 2: B");
+        verify(legendaProvider, never()).buscar(c.youtubeId(), "en");
+        verify(videoRepository, never()).existsByYoutubeId(outro.youtubeId());
     }
 }

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#EEEBE3">
+  <title>Painel de ingestão · OuvirFrase</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="fonts.css">
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="painel.css">
+</head>
+<body>
+  <header class="topo painel-topo">
+    <a class="marca" href="./" aria-label="OuvirFrase, painel de ingestão">
+      <svg class="logo" aria-hidden="true"><use href="icons.svg#logo"/></svg>
+      <span class="marca-nome">Ouvir<b>Frase</b></span>
+    </a>
+    <span class="pilula-local">Painel de ingestão · só neste computador</span>
+  </header>
+
+  <main class="painel">
+    <section class="card formulario">
+      <div>
+        <h1 class="painel-titulo">Ingerir um canal</h1>
+        <p class="painel-sub">Cole o link do canal. O painel acha os vídeos, confere as legendas e indexa um lote.</p>
+      </div>
+
+      <form id="form" autocomplete="off">
+        <div class="busca">
+          <input id="canal" type="text" placeholder="https://www.youtube.com/@TEDTalks" aria-label="Link do canal" maxlength="200" required autofocus>
+          <button id="enviar" type="submit" class="btn primario">
+            <span>Ingerir canal</span>
+            <svg class="ic" aria-hidden="true"><use href="icons.svg#i-arrow-right"/></svg>
+          </button>
+        </div>
+
+        <div class="linha-idioma">
+          <label class="idioma" title="Idioma das legendas">
+            <svg class="ic" aria-hidden="true"><use href="icons.svg#i-globe"/></svg>
+            <select id="idioma" aria-label="Idioma do canal">
+              <option value="en">Inglês</option>
+              <option value="es">Espanhol</option>
+              <option value="fr">Francês</option>
+              <option value="de">Alemão</option>
+              <option value="it">Italiano</option>
+              <option value="pt">Português</option>
+              <option value="ja">Japonês</option>
+              <option value="ko">Coreano</option>
+              <option value="zh">Chinês</option>
+              <option value="ru">Russo</option>
+            </select>
+            <svg class="ic caret" aria-hidden="true"><use href="icons.svg#i-caret-down"/></svg>
+          </label>
+          <span class="dica">Idioma falado no canal.</span>
+        </div>
+
+        <details class="avancado">
+          <summary>
+            <span>Opções</span>
+            <svg class="ic caret" aria-hidden="true"><use href="icons.svg#i-caret-down"/></svg>
+          </summary>
+          <div class="campos">
+            <label class="campo-num">
+              <span>Vídeos a descobrir</span>
+              <input id="max" type="number" value="100" min="1" max="500" required>
+              <small>Quantos vídeos novos buscar no canal (1 a 500).</small>
+            </label>
+            <label class="campo-num">
+              <span>Vídeos por lote</span>
+              <input id="limite" type="number" value="15" min="1" max="50" required>
+              <small>Quantos indexar por clique. Lote pequeno evita o bloqueio do YouTube.</small>
+            </label>
+          </div>
+        </details>
+      </form>
+    </section>
+
+    <section id="andamento" class="card andamento" role="status" aria-live="polite" hidden></section>
+  </main>
+
+  <script type="module" src="painel.js"></script>
+</body>
+</html>

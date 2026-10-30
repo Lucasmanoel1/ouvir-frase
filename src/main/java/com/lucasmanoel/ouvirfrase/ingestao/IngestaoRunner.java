@@ -16,9 +16,10 @@ import java.util.List;
  * Dois modos, ambos no profile "ingestao":
  *  - sem argumentos: indexa todos os CSVs de data/{idioma}/{canal}.csv;
  *  - com --canal=@handle [--idioma=en] [--max=100]: só descobre vídeos do canal e grava o CSV.
+ * Com o profile "painel" junto, quem comanda é a página: o runner não faz nada.
  */
 @Component
-@Profile("ingestao")
+@Profile("ingestao & !painel")
 @Slf4j
 public class IngestaoRunner implements ApplicationRunner {
 

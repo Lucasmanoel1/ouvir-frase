@@ -20,6 +20,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Consumer;
 
 /**
  * Orquestra a ingestão: pasta de CSVs -> filtro embeddable -> legenda -> índice.
@@ -57,18 +58,31 @@ public class IngestaoService {
         this.props = props;
     }
 
+    /** Linha de comando: todos os CSVs, com o limite das propriedades. */
     public RelatorioIngestao executar() {
-        List<VideoSemente> sementes = catalogo.carregar(props.dados());
+        return executar(null, props.limite(), mensagem -> { });
+    }
+
+    /**
+     * @param canal    só os vídeos desse canal (nome do CSV sem a extensão); null = todos
+     * @param limite   máximo de vídeos indexados nesta chamada; 0 = sem limite
+     * @param progresso recebe uma frase curta a cada passo (o painel mostra na tela)
+     */
+    public RelatorioIngestao executar(String canal, int limite, Consumer<String> progresso) {
+        List<VideoSemente> sementes = catalogo.carregar(props.dados()).stream()
+                .filter(s -> canal == null || canal.equals(s.canal()))
+                .toList();
         Triagem triagem = triar(sementes);
 
         Map<VideoSemente, MotivoDescarte> descartados = new LinkedHashMap<>();
         Placar placar = new Placar();
         try {
+            progresso.accept("Conferindo " + triagem.novas().size() + " vídeos novos no YouTube…");
             ResultadoFiltro filtrado = filtro.filtrar(triagem.novas());
             descartados.putAll(filtrado.descartados());
             filtrado.descartados().forEach(this::registrarDescarte);
 
-            indexarAprovados(filtrado.aprovados(), descartados, placar);
+            indexarAprovados(filtrado.aprovados(), limite, descartados, placar, progresso);
         } catch (FalhaNaBuscaDeLegendaException | YouTubeApiException e) {
             throw new IngestaoInterrompidaException(
                     new RelatorioIngestao(sementes.size(), placar.indexados, triagem.jaIndexados(),
@@ -95,17 +109,21 @@ public class IngestaoService {
         return new Triagem(novas, jaIndexados, jaDescartados);
     }
 
-    private void indexarAprovados(List<VideoSemente> aprovados, Map<VideoSemente, MotivoDescarte> descartados,
-                                  Placar placar) {
+    private void indexarAprovados(List<VideoSemente> aprovados, int limite,
+                                  Map<VideoSemente, MotivoDescarte> descartados, Placar placar,
+                                  Consumer<String> progresso) {
+        int lote = limite > 0 ? Math.min(limite, aprovados.size()) : aprovados.size();
         for (int i = 0; i < aprovados.size(); i++) {
-            if (props.limite() > 0 && i >= props.limite()) {
+            if (limite > 0 && i >= limite) {
                 placar.adiados = aprovados.size() - i;
                 break;
             }
             if (i > 0) {
                 pausar();
             }
-            if (indexar(aprovados.get(i), descartados)) {
+            VideoSemente video = aprovados.get(i);
+            progresso.accept("Indexando " + (i + 1) + " de " + lote + ": " + video.titulo());
+            if (indexar(video, descartados)) {
                 placar.indexados++;
             }
         }

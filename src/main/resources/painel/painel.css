@@ -1,0 +1,84 @@
+/* Painel de ingestão: só o que o site principal ainda não tem.
+   Tokens, cartões, botões, .busca, .idioma e .ondas vêm do style.css. */
+
+.topo.painel-topo { grid-template-columns: auto 1fr; grid-template-areas: "marca pilula"; }
+.pilula-local {
+  grid-area: pilula; justify-self: end;
+  display: inline-flex; align-items: center;
+  height: 36px; padding: 0 14px;
+  border: 2px dashed var(--tinta); border-radius: 999px;
+  color: var(--suave); font-weight: 600; font-size: .85rem;
+}
+
+.painel {
+  max-width: 720px; margin: 0 auto;
+  padding: clamp(12px, 4vh, 40px) 24px 56px;
+  display: grid; gap: 20px;
+}
+
+.formulario { padding: 24px; display: grid; gap: 20px; }
+.formulario form { display: grid; gap: 16px; }
+.painel-titulo { font: 600 clamp(1.8rem, 4.6vw, 2.5rem)/1.12 var(--serif); letter-spacing: -.02em; }
+.painel-sub { color: var(--suave); margin-top: 8px; }
+/* o style.css posiciona .busca e .idioma numa grade do topo; aqui eles ficam soltos */
+.formulario .busca, .formulario .idioma { grid-area: auto; }
+.formulario .busca { height: 56px; }
+
+.linha-idioma { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.dica { color: var(--suave); font-size: .9rem; }
+
+.avancado summary {
+  display: inline-flex; align-items: center; gap: 6px;
+  list-style: none; cursor: pointer;
+  font-weight: 600; font-size: .92rem;
+}
+.avancado summary::-webkit-details-marker { display: none; }
+.avancado summary:focus-visible { outline: 3px solid var(--tinta); outline-offset: 4px; border-radius: 6px; }
+.avancado .caret { transition: transform .15s ease; }
+.avancado[open] .caret { transform: rotate(180deg); }
+.campos { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 14px; }
+.campo-num { display: grid; gap: 6px; align-content: start; }
+.campo-num span { font-weight: 600; font-size: .92rem; }
+.campo-num small { color: var(--suave); font-size: .82rem; line-height: 1.35; }
+.campo-num input {
+  height: 44px; padding: 0 12px; width: 100%;
+  background: var(--papel-2); border: var(--traco); border-radius: var(--raio);
+  box-shadow: var(--sombra-p); font-size: 1rem; font-variant-numeric: tabular-nums;
+}
+.campo-num input:focus-visible { outline: 3px solid var(--tinta); outline-offset: 2px; }
+
+.formulario:has(input:disabled) { opacity: .7; }
+.busca input:disabled { cursor: not-allowed; }
+
+/* andamento */
+.andamento {
+  padding: 28px 24px; text-align: center;
+  display: grid; justify-items: center; gap: 10px;
+  animation: entra .35s ease both;
+}
+.andamento h2 { font: 600 1.4rem/1.25 var(--serif); }
+.andamento p { color: var(--suave); max-width: 52ch; }
+.andamento > .ic { width: 40px; height: 40px; }
+.andamento[data-situacao="CONCLUIDO"] > .ic { color: var(--ok); }
+.andamento[data-situacao="ERRO"] > .ic { color: var(--erro); }
+.andamento .btn { margin-top: 6px; }
+
+.relatorio { width: 100%; text-align: left; margin-top: 8px; }
+.relatorio summary { cursor: pointer; font-weight: 600; font-size: .92rem; }
+.relatorio pre {
+  margin: 10px 0 0; padding: 12px 14px;
+  background: var(--papel); border: var(--traco); border-radius: var(--raio);
+  font: 500 .8rem/1.55 ui-monospace, SFMono-Regular, Consolas, monospace;
+  white-space: pre-wrap; overflow-wrap: anywhere;
+  max-height: 320px; overflow: auto;
+}
+
+@media (max-width: 559px) {
+  .painel { padding-left: 16px; padding-right: 16px; }
+  .formulario { padding: 18px 16px; }
+  .campos { grid-template-columns: 1fr; }
+  .pilula-local { font-size: .78rem; padding: 0 10px; text-align: right; height: auto; min-height: 36px; }
+  .busca { flex-direction: column; height: auto !important; }
+  .busca input { flex: none; height: 52px; }
+  .busca .btn { border-left: 0; border-top: var(--traco); height: 48px; }
+}

@@ -4,6 +4,7 @@ import com.lucasmanoel.ouvirfrase.ingestao.IngestaoInterrompidaException;
 import com.lucasmanoel.ouvirfrase.ingestao.IngestaoProperties;
 import com.lucasmanoel.ouvirfrase.ingestao.IngestaoService;
 import com.lucasmanoel.ouvirfrase.ingestao.RelatorioIngestao;
+import com.lucasmanoel.ouvirfrase.ingestao.catalogo.ListaDeVideos;
 import com.lucasmanoel.ouvirfrase.ingestao.legenda.FalhaNaBuscaDeLegendaException;
 import com.lucasmanoel.ouvirfrase.ingestao.painel.PainelDeIngestao.Andamento;
 import com.lucasmanoel.ouvirfrase.ingestao.painel.PainelDeIngestao.Pedido;
@@ -26,13 +27,15 @@ import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class PainelDeIngestaoTest {
 
     private static final Path DADOS = Path.of("data");
-    private static final Pedido PEDIDO = new Pedido("@TEDTalks", "en", 100, 15);
+    private static final Pedido PEDIDO = new Pedido("@TEDTalks", "en", null, 100, 15);
+    private static final ListaDeVideos TEDTALKS = new ListaDeVideos("en", "tedtalks");
 
     @Mock private DescobertaDeCanal descoberta;
     @Mock private IngestaoService ingestao;
@@ -68,7 +71,7 @@ class PainelDeIngestaoTest {
     void deveDescobrirEIndexarSoOCanalPedidoMostrandoOProgresso() {
         when(descoberta.descobrir(DADOS, "@TEDTalks", "en", 100))
                 .thenReturn(new DescobertaDeCanal.Resultado(DADOS.resolve("en").resolve("tedtalks.csv"), 10));
-        when(ingestao.executar(eq("tedtalks"), eq(15), any())).thenAnswer(chamada -> {
+        when(ingestao.executar(eq(new ListaDeVideos("en", "tedtalks")), eq(15), any())).thenAnswer(chamada -> {
             Consumer<String> progresso = chamada.getArgument(2);
             progresso.accept("Indexando 1 de 5: Titulo");
             assertThat(painel.andamento().mensagem()).isEqualTo("Indexando 1 de 5: Titulo");
@@ -82,6 +85,7 @@ class PainelDeIngestaoTest {
         Andamento fim = painel.andamento();
         assertThat(fim.situacao()).isEqualTo(Situacao.CONCLUIDO);
         assertThat(fim.adiados()).isEqualTo(3);
+        assertThat(fim.lista()).isEqualTo(TEDTALKS);
         assertThat(fim.relatorio()).contains("Relatório da ingestão").contains("Indexados agora: 5");
     }
 
@@ -97,8 +101,8 @@ class PainelDeIngestaoTest {
     @Test
     void devePermitirNovaIngestaoDepoisDeTerminar() {
         when(descoberta.descobrir(DADOS, "@TEDTalks", "en", 100))
-                .thenReturn(new DescobertaDeCanal.Resultado(DADOS.resolve("en").resolve("tedtalks.csv"), 0));
-        when(ingestao.executar(eq("tedtalks"), anyInt(), any())).thenReturn(relatorio(0));
+                .thenReturn(new DescobertaDeCanal.Resultado(DADOS.resolve("en").resolve("tedtalks.csv"), 10));
+        when(ingestao.executar(eq(new ListaDeVideos("en", "tedtalks")), anyInt(), any())).thenReturn(relatorio(0));
         painel.iniciar(PEDIDO);
         rodarTarefa();
 
@@ -111,7 +115,7 @@ class PainelDeIngestaoTest {
     void deveExplicarOBloqueioDoYouTubeEGuardarORelatorioParcial() {
         when(descoberta.descobrir(DADOS, "@TEDTalks", "en", 100))
                 .thenReturn(new DescobertaDeCanal.Resultado(DADOS.resolve("en").resolve("tedtalks.csv"), 10));
-        when(ingestao.executar(eq("tedtalks"), eq(15), any()))
+        when(ingestao.executar(eq(new ListaDeVideos("en", "tedtalks")), eq(15), any()))
                 .thenThrow(new IngestaoInterrompidaException(relatorio(0),
                         new FalhaNaBuscaDeLegendaException("IP bloqueado")));
 
@@ -120,7 +124,7 @@ class PainelDeIngestaoTest {
 
         Andamento fim = painel.andamento();
         assertThat(fim.situacao()).isEqualTo(Situacao.ERRO);
-        assertThat(fim.mensagem()).contains("bloqueou este IP").contains("Continuar");
+        assertThat(fim.mensagem()).contains("bloqueou este IP").contains("Tentar de novo");
         assertThat(fim.relatorio()).contains("Indexados agora: 5");
     }
 
@@ -135,5 +139,52 @@ class PainelDeIngestaoTest {
         assertThat(painel.andamento().situacao()).isEqualTo(Situacao.ERRO);
         assertThat(painel.andamento().mensagem()).isEqualTo("Canal não encontrado: @TEDTalks");
         assertThat(painel.andamento().relatorio()).isNull();
+    }
+
+    @Test
+    void deveSoIndexarSemDescobrirQuandoVemALista() {
+        Pedido soIndexar = new Pedido(null, "ru", "qwrtru", 100, 15);
+        ListaDeVideos qwrtru = new ListaDeVideos("ru", "qwrtru");
+        when(ingestao.executar(eq(qwrtru), eq(15), any())).thenReturn(relatorio(2));
+
+        painel.iniciar(soIndexar);
+        assertThat(painel.andamento().mensagem()).isEqualTo("Preparando o lote…");
+        rodarTarefa();
+
+        verifyNoInteractions(descoberta);
+        Andamento fim = painel.andamento();
+        assertThat(fim.situacao()).isEqualTo(Situacao.CONCLUIDO);
+        assertThat(fim.lista()).isEqualTo(qwrtru);
+        assertThat(fim.adiados()).isEqualTo(2);
+    }
+
+    @Test
+    void deveGuardarAListaMesmoQuandoOYouTubeBloqueia() {
+        when(descoberta.descobrir(DADOS, "@TEDTalks", "en", 100))
+                .thenReturn(new DescobertaDeCanal.Resultado(DADOS.resolve("en").resolve("tedtalks.csv"), 10));
+        when(ingestao.executar(eq(TEDTALKS), eq(15), any()))
+                .thenThrow(new IngestaoInterrompidaException(relatorio(0),
+                        new FalhaNaBuscaDeLegendaException("IP bloqueado")));
+
+        painel.iniciar(PEDIDO);
+        rodarTarefa();
+
+        assertThat(painel.andamento().situacao()).isEqualTo(Situacao.ERRO);
+        assertThat(painel.andamento().lista()).isEqualTo(TEDTALKS);
+    }
+
+    @Test
+    void deveConcluirSemIndexarQuandoNaoHaVideoNovoNemArquivo() {
+        when(descoberta.descobrir(DADOS, "@TEDTalks", "en", 100))
+                .thenReturn(new DescobertaDeCanal.Resultado(DADOS.resolve("en").resolve("canal-que-nao-existe.csv"), 0));
+
+        painel.iniciar(PEDIDO);
+        rodarTarefa();
+
+        verifyNoInteractions(ingestao);
+        Andamento fim = painel.andamento();
+        assertThat(fim.situacao()).isEqualTo(Situacao.CONCLUIDO);
+        assertThat(fim.mensagem()).contains("Nenhum vídeo novo");
+        assertThat(fim.adiados()).isZero();
     }
 }

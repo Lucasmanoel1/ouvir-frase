@@ -1,6 +1,7 @@
 package com.lucasmanoel.ouvirfrase.ingestao.youtube;
 
 import com.lucasmanoel.ouvirfrase.ingestao.catalogo.CatalogoDeVideos;
+import com.lucasmanoel.ouvirfrase.ingestao.catalogo.ListaDeVideos;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.csv.CSVFormat;
@@ -19,8 +20,8 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Dado o link/handle de um canal, acha os vídeos candidatos e acrescenta em
- * {@code <raiz>/<idioma>/<canal>.csv}. Não indexa nada: o Lucas revisa o CSV e depois roda a ingestão.
+ * Dado o link/handle de um canal ou o link de uma playlist, acha os vídeos candidatos e acrescenta em
+ * {@code <raiz>/<idioma>/<nome>.csv}. Não indexa nada: o Lucas revisa o CSV e depois roda a ingestão.
  */
 @Component
 @Profile("ingestao")
@@ -34,15 +35,19 @@ public class DescobertaDeCanal {
     private final CatalogoDeVideos catalogo;
 
     public record Resultado(Path arquivo, int gravados) {
+
+        public ListaDeVideos lista() {
+            return ListaDeVideos.doArquivo(arquivo);
+        }
     }
 
-    public Resultado descobrir(Path raiz, String canalEntrada, String idioma, int max) {
-        YouTubeCanalClient.Canal canal = client.resolverCanal(canalEntrada);
-        Path arquivo = raiz.resolve(idioma).resolve(canal.slug() + ".csv");
-        log.info("Canal '{}' -> {}", canal.titulo(), arquivo);
+    public Resultado descobrir(Path raiz, String entrada, String idioma, int max) {
+        YouTubeCanalClient.Fonte fonte = client.resolverFonte(entrada);
+        Path arquivo = raiz.resolve(idioma).resolve(fonte.nomeArquivo() + ".csv");
+        log.info("Fonte '{}' -> {}", fonte.titulo(), arquivo);
 
         Set<String> conhecidos = catalogo.idsConhecidos(raiz);
-        List<YouTubeCanalClient.VideoDoCanal> novos = client.listarVideos(canal.uploadsPlaylistId(), conhecidos, max);
+        List<YouTubeCanalClient.VideoDoCanal> novos = client.listarVideos(fonte.playlistId(), conhecidos, max);
         if (novos.isEmpty()) {
             return new Resultado(arquivo, 0);
         }

@@ -1,6 +1,7 @@
 package com.lucasmanoel.ouvirfrase.ingestao.youtube;
 
 import com.lucasmanoel.ouvirfrase.ingestao.catalogo.CatalogoDeVideos;
+import com.lucasmanoel.ouvirfrase.ingestao.catalogo.ListaDeVideos;
 import com.lucasmanoel.ouvirfrase.ingestao.catalogo.VideoCsvReader;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -30,14 +31,15 @@ class DescobertaDeCanalTest {
                 "youtube_id,idioma,titulo\nAAAAAAAAAAA,en,Ja existe\n");
         DescobertaDeCanal descoberta = new DescobertaDeCanal(client, new CatalogoDeVideos(new VideoCsvReader()));
 
-        when(client.resolverCanal("@Novo"))
-                .thenReturn(new YouTubeCanalClient.Canal("Novo Canal", "UUplaylist", "novo"));
+        when(client.resolverFonte("@Novo"))
+                .thenReturn(new YouTubeCanalClient.Fonte("Novo Canal", "UUplaylist", "novo"));
         when(client.listarVideos("UUplaylist", Set.of("AAAAAAAAAAA"), 5))
                 .thenReturn(List.of(new YouTubeCanalClient.VideoDoCanal("BBBBBBBBBBB", "Titulo, com virgula")));
 
         DescobertaDeCanal.Resultado r = descoberta.descobrir(raiz, "@Novo", "en", 5);
 
         assertThat(r.gravados()).isEqualTo(1);
+        assertThat(r.lista()).isEqualTo(new ListaDeVideos("en", "novo"));
         assertThat(Files.readAllLines(raiz.resolve("en").resolve("novo.csv")))
                 .containsExactly("youtube_id,idioma,titulo", "BBBBBBBBBBB,en,\"Titulo, com virgula\"");
     }

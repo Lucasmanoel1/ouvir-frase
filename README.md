@@ -80,11 +80,11 @@ docker compose exec db psql -U postgres -d ouvirfrase
 
 ## Ingestão
 
-A ingestão roda **offline**, num perfil à parte, e nunca no site publicado: o site em si não consulta o YouTube. Há dois jeitos de rodar: o **painel** local (cole o link do canal e pronto) ou a linha de comando (seções 1 e 2).
+A ingestão roda **offline**, num perfil à parte, e nunca no site publicado: o site em si não consulta o YouTube. Há dois jeitos de rodar: o **painel** local (cole o link do canal ou da playlist e pronto) ou a linha de comando (seções 1 e 2).
 
 ### Jeito mais simples: o painel
 
-Uma página onde você cola o link de um canal e a ingestão roda sozinha. Ela só existe no seu computador: é o perfil `painel`, que escuta apenas em `127.0.0.1:8081`. O site publicado não tem essa página nem essa API.
+Uma página onde você cola o link de um canal ou de uma playlist e a ingestão roda sozinha. Ela só existe no seu computador: é o perfil `painel`, que escuta apenas em `127.0.0.1:8081`. O site publicado não tem essa página nem essa API.
 
 **Antes de subir:** o banco no ar (`docker compose up -d db`) e a chave da API no `.env` (veja [1. Preparar](#1-preparar)).
 
@@ -95,11 +95,15 @@ Uma página onde você cola o link de um canal e a ingestão roda sozinha. Ela s
    ```
 
 2. Abra <http://localhost:8081>.
-3. Cole o link do canal (`https://www.youtube.com/@TEDTalks`), escolha o idioma e clique em **Ingerir canal**.
+3. Cole o link do canal (`https://www.youtube.com/@TEDTalks`) ou da playlist (`https://www.youtube.com/playlist?list=PL…`), escolha o idioma e clique em **Ingerir**.
 4. Acompanhe na tela. No fim aparece o relatório. Se sobrarem vídeos ("Faltam N vídeos"), clique em **Continuar** para o próximo lote.
 5. Terminou? `Ctrl+C` no terminal.
 
-Cada clique faz duas coisas: descobre os vídeos novos do canal (grava `data/<idioma>/<canal>.csv`, como o `--canal` da linha de comando) e indexa **um lote** desse canal (15 vídeos, com 6 s entre eles). Em **Opções** você muda quantos vídeos descobrir (padrão 100) e o tamanho do lote (padrão 15). Recarregar a página não interrompe nada: ela volta a mostrar o andamento.
+Cada clique em **Ingerir** faz duas coisas: descobre os vídeos novos do canal ou da playlist (grava `data/<idioma>/<canal>.csv`, ou `data/<idioma>/playlist-<nome>.csv` no caso de playlist, como o `--canal` da linha de comando) e indexa **um lote** dessa lista (15 vídeos, com 6 s entre eles). Em **Opções** você muda quantos vídeos descobrir (padrão 100) e o tamanho do lote (padrão 15). Recarregar a página não interrompe nada: ela volta a mostrar o andamento.
+
+Playlist pode ter vídeos de canais diferentes: todos vão para o mesmo CSV. Mixes automáticos (`list=RD…`) e listas pessoais (Assistir mais tarde, Gostei) são recusados, porque a API do YouTube não lê essas listas: use uma playlist pública.
+
+**Listas cadastradas.** Abaixo do formulário, o painel lista cada CSV de `data/` com o tipo (canal ou playlist), o idioma e as contagens: indexados, descartados e pendentes. **Ingerir lote** indexa um lote da lista sem descobrir nada de novo no YouTube. Depois do lote, **Continuar** (e **Tentar de novo**, se o YouTube bloquear) também só indexam: não gastam cota de descoberta. O total de uma lista não conta o vídeo que já aparece antes em outro CSV (cada vídeo fica só na primeira lista, em ordem de caminho), então pode ser menor que o número de linhas do arquivo.
 
 Se o YouTube bloquear o IP (`429`), a tela avisa e o que já foi indexado fica salvo. Espere **horas** e clique em **Tentar de novo** (veja o aviso mais abaixo).
 
@@ -125,7 +129,7 @@ Para **descobrir** os vídeos de um canal em vez de montar a lista à mão:
 
 | Parâmetro | O que faz |
 |---|---|
-| `--canal` | `@handle`, link do canal (`youtube.com/@handle`) ou id do canal (`UC…`). |
+| `--canal` | `@handle`, link do canal (`youtube.com/@handle`), id do canal (`UC…`) ou link de playlist (`…list=PL…`). |
 | `--idioma` | Idioma dos vídeos e pasta de destino. Padrão: `en`. |
 | `--max` | Máximo de vídeos novos a gravar. Padrão: `100`. |
 
@@ -238,8 +242,8 @@ Testes unitários (Normalizador, estimador de tempo, leitor de CSV, filtro, prov
 src/main/java/com/lucasmanoel/ouvirfrase/
   controller/  service/  repository/  model/  dto/   # a API de busca (camadas)
   ingestao/                    # pipeline offline (perfil "ingestao"): serviço, runner, filtro, IngestaoProperties
-    catalogo/                  #   leitura dos CSVs
-    youtube/                   #   YouTube Data API (YouTubeApi) e descoberta de vídeos de um canal
+    catalogo/                  #   leitura dos CSVs e ListaDeVideos (idioma + nome do CSV)
+    youtube/                   #   YouTube Data API (YouTubeApi) e descoberta de vídeos de um canal ou playlist
     legenda/                   #   download da legenda (interface LegendaProvider)
     indexacao/                 #   índice invertido: estimador de tempo e IndexadorDeVideo
     painel/                    #   painel local (perfil "painel"): PainelDeIngestao, PainelController, SoLocalFilter

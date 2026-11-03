@@ -31,17 +31,15 @@ public class CatalogoDeVideos {
         Set<String> vistos = new HashSet<>();
 
         for (Path arquivo : listarCsvs(raiz)) {
-            String idioma = arquivo.getParent().getFileName().toString();
-            String arquivoNome = arquivo.getFileName().toString();
-            String canal = arquivoNome.substring(0, arquivoNome.length() - ".csv".length());
+            ListaDeVideos lista = ListaDeVideos.doArquivo(arquivo);
 
             for (VideoSemente s : reader.ler(arquivo)) {
-                if (!s.idioma().equals(idioma)) {
+                if (!s.idioma().equals(lista.idioma())) {
                     throw new IllegalArgumentException("%s: idioma '%s' não bate com a pasta '%s' (vídeo %s)"
-                            .formatted(arquivo, s.idioma(), idioma, s.youtubeId()));
+                            .formatted(arquivo, s.idioma(), lista.idioma(), s.youtubeId()));
                 }
                 if (vistos.add(s.youtubeId())) {
-                    todos.add(new VideoSemente(s.youtubeId(), s.idioma(), s.titulo(), canal));
+                    todos.add(new VideoSemente(s.youtubeId(), s.idioma(), s.titulo(), lista.nome()));
                 } else {
                     log.warn("Vídeo [{}] repetido em {}; mantida a primeira ocorrência", s.youtubeId(), arquivo);
                 }

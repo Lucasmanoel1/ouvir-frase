@@ -1,5 +1,7 @@
 package com.lucasmanoel.ouvirfrase.ingestao.painel;
 
+import com.lucasmanoel.ouvirfrase.ingestao.IngestaoService;
+import com.lucasmanoel.ouvirfrase.ingestao.ResumoLista;
 import com.lucasmanoel.ouvirfrase.ingestao.painel.PainelDeIngestao.Andamento;
 import com.lucasmanoel.ouvirfrase.ingestao.painel.PainelDeIngestao.Pedido;
 import com.lucasmanoel.ouvirfrase.ingestao.painel.PainelDeIngestao.Situacao;
@@ -10,6 +12,8 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+
+import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
@@ -27,19 +31,20 @@ class PainelControllerTest {
 
     @Autowired MockMvc mockMvc;
     @MockitoBean PainelDeIngestao painel;
+    @MockitoBean IngestaoService ingestao;
 
     @Test
-    void deveIniciarComOsPadroesQuandoSoOCanalVem() throws Exception {
-        Pedido esperado = new Pedido("@TEDTalks", "en", 100, 15);
+    void deveIniciarComOsPadroesQuandoSoOLinkVem() throws Exception {
+        Pedido esperado = new Pedido("@TEDTalks", "en", null, 100, 15);
         when(painel.andamento())
-                .thenReturn(new Andamento(Situacao.RODANDO, "Procurando os vídeos do canal…", null, 0, esperado));
+                .thenReturn(new Andamento(Situacao.RODANDO, "Procurando os vídeos…", null, 0, esperado, null));
 
         mockMvc.perform(post("/api/painel/ingestao")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"canal\":\" @TEDTalks \"}"))
+                        .content("{\"link\":\" @TEDTalks \"}"))
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.situacao").value("RODANDO"))
-                .andExpect(jsonPath("$.pedido.canal").value("@TEDTalks"));
+                .andExpect(jsonPath("$.pedido.link").value("@TEDTalks"));
 
         verify(painel).iniciar(esperado);
     }
@@ -48,17 +53,17 @@ class PainelControllerTest {
     void deveRepassarOsValoresInformados() throws Exception {
         mockMvc.perform(post("/api/painel/ingestao")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"canal\":\"https://www.youtube.com/@vox\",\"idioma\":\"pt-BR\",\"max\":30,\"limite\":2}"))
+                        .content("{\"link\":\"https://www.youtube.com/@vox\",\"idioma\":\"pt-BR\",\"max\":30,\"limite\":2}"))
                 .andExpect(status().isAccepted());
 
-        verify(painel).iniciar(new Pedido("https://www.youtube.com/@vox", "pt-BR", 30, 2));
+        verify(painel).iniciar(new Pedido("https://www.youtube.com/@vox", "pt-BR", null, 30, 2));
     }
 
     @Test
-    void deveRejeitarCanalEmBranco() throws Exception {
+    void deveRejeitarLinkEmBranco() throws Exception {
         mockMvc.perform(post("/api/painel/ingestao")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"canal\":\"   \"}"))
+                        .content("{\"link\":\"   \"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.erro").value("requisicao_invalida"))
                 .andExpect(jsonPath("$.mensagem").isNotEmpty());
@@ -70,7 +75,7 @@ class PainelControllerTest {
     void deveRejeitarIdiomaQueNaoEUmCodigo() throws Exception {
         mockMvc.perform(post("/api/painel/ingestao")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"canal\":\"@TEDTalks\",\"idioma\":\"../x\"}"))
+                        .content("{\"link\":\"@TEDTalks\",\"idioma\":\"../x\"}"))
                 .andExpect(status().isBadRequest());
 
         verify(painel, never()).iniciar(any());
@@ -80,7 +85,7 @@ class PainelControllerTest {
     void deveRejeitarLoteForaDoIntervalo() throws Exception {
         mockMvc.perform(post("/api/painel/ingestao")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"canal\":\"@TEDTalks\",\"limite\":500}"))
+                        .content("{\"link\":\"@TEDTalks\",\"limite\":500}"))
                 .andExpect(status().isBadRequest());
 
         verify(painel, never()).iniciar(any());
@@ -92,7 +97,7 @@ class PainelControllerTest {
 
         mockMvc.perform(post("/api/painel/ingestao")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"canal\":\"@TEDTalks\"}"))
+                        .content("{\"link\":\"@TEDTalks\"}"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.erro").value("em_andamento"));
     }
@@ -110,12 +115,68 @@ class PainelControllerTest {
     @Test
     void deveDevolverOAndamento() throws Exception {
         when(painel.andamento()).thenReturn(new Andamento(Situacao.CONCLUIDO, "Pronto.", "Relatório da ingestão", 4,
-                new Pedido("@TEDTalks", "en", 100, 15)));
+                new Pedido("@TEDTalks", "en", null, 100, 15), null));
 
         mockMvc.perform(get("/api/painel/ingestao"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.situacao").value("CONCLUIDO"))
                 .andExpect(jsonPath("$.adiados").value(4))
                 .andExpect(jsonPath("$.relatorio").value("Relatório da ingestão"));
+    }
+
+    @Test
+    void deveSoIndexarQuandoVemALista() throws Exception {
+        mockMvc.perform(post("/api/painel/ingestao")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"link\":\"https://www.youtube.com/@x\",\"idioma\":\"ru\",\"lista\":\"qwrtru\",\"max\":30}"))
+                .andExpect(status().isAccepted());
+
+        verify(painel).iniciar(new Pedido(null, "ru", "qwrtru", 100, 15));
+    }
+
+    @Test
+    void deveRejeitarListaInvalida() throws Exception {
+        mockMvc.perform(post("/api/painel/ingestao")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"idioma\":\"ru\",\"lista\":\"../x\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.mensagem").value("Lista inválida."));
+
+        verify(painel, never()).iniciar(any());
+    }
+
+    @Test
+    void deveRejeitarPedidoSemLinkENemLista() throws Exception {
+        mockMvc.perform(post("/api/painel/ingestao")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"idioma\":\"en\"}"))
+                .andExpect(status().isBadRequest());
+
+        verify(painel, never()).iniciar(any());
+    }
+
+    @Test
+    void deveListarAsListasCadastradas() throws Exception {
+        when(ingestao.listas()).thenReturn(List.of(new ResumoLista("en", "ted", false, 208, 43, 2, 163)));
+
+        mockMvc.perform(get("/api/painel/listas"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].idioma").value("en"))
+                .andExpect(jsonPath("$[0].nome").value("ted"))
+                .andExpect(jsonPath("$[0].playlist").value(false))
+                .andExpect(jsonPath("$[0].total").value(208))
+                .andExpect(jsonPath("$[0].indexados").value(43))
+                .andExpect(jsonPath("$[0].descartados").value(2))
+                .andExpect(jsonPath("$[0].pendentes").value(163));
+    }
+
+    @Test
+    void deveResponderErroQuandoOCatalogoNaoPodeSerLido() throws Exception {
+        when(ingestao.listas()).thenThrow(new IllegalArgumentException("idioma 'es' não bate com a pasta 'en'"));
+
+        mockMvc.perform(get("/api/painel/listas"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.erro").value("listas_ilegiveis"))
+                .andExpect(jsonPath("$.mensagem").isNotEmpty());
     }
 }

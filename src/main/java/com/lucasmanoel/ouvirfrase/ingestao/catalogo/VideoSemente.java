@@ -5,4 +5,8 @@ public record VideoSemente(String youtubeId, String idioma, String titulo, Strin
     public VideoSemente(String youtubeId, String idioma, String titulo) {
         this(youtubeId, idioma, titulo, null);
     }
+
+    public ListaDeVideos lista() {
+        return new ListaDeVideos(idioma, canal);
+    }
 }

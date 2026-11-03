@@ -29,4 +29,20 @@ class EscritasTest {
     void deveIdentificarAsEscritasDasLetras(String texto, Set<Character.UnicodeScript> esperado) {
         assertThat(Escritas.de(texto)).isEqualTo(esperado);
     }
+
+    static Stream<Arguments> compatibilidade() {
+        return Stream.of(
+                Arguments.of("es", Set.of(LATIN), true),
+                Arguments.of("ru", Set.of(LATIN), false),
+                Arguments.of("ja", Set.of(HAN, HIRAGANA), true),
+                Arguments.of("zh-CN", Set.of(HAN, HIRAGANA), false),
+                Arguments.of("ar", Set.of(LATIN), true),
+                Arguments.of("ru", Set.of(), true));
+    }
+
+    @ParameterizedTest
+    @MethodSource("compatibilidade")
+    void deveDizerSeOIdiomaEscreveComAsEscritas(String idioma, Set<Character.UnicodeScript> escritas, boolean esperado) {
+        assertThat(Escritas.compativel(idioma, escritas)).isEqualTo(esperado);
+    }
 }

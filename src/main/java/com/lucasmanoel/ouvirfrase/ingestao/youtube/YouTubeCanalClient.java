@@ -1,6 +1,7 @@
 package com.lucasmanoel.ouvirfrase.ingestao.youtube;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.lucasmanoel.ouvirfrase.ingestao.catalogo.ListaDeVideos;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
@@ -18,8 +19,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Lista os vídeos de um canal usando só endpoints baratos da YouTube Data API
- * (channels.list, playlistItems.list e videos.list: 1 unidade de cota cada).
+ * Lista os vídeos de um canal ou de uma playlist usando só endpoints baratos da YouTube Data API
+ * (channels.list, playlists.list, playlistItems.list e videos.list: 1 unidade de cota cada).
  * Nunca usa search.list, que custa 100 unidades por chamada.
  */
 @Component
@@ -31,17 +32,26 @@ public class YouTubeCanalClient {
 
     private static final Pattern HANDLE = Pattern.compile("@([\\w.\\-]+)");
     private static final Pattern ID_CANAL = Pattern.compile("(UC[\\w-]{22})");
+    private static final Pattern LISTA = Pattern.compile("[?&]list=([\\w-]+)");
+    /** Assistir mais tarde, Gostei e músicas curtidas: listas pessoais que a API não lê. */
+    private static final Set<String> LISTAS_PESSOAIS = Set.of("WL", "LL", "LM");
 
     private final YouTubeApi api;
 
-    public record Canal(String titulo, String uploadsPlaylistId, String slug) {
+    /** De onde vêm os vídeos: a playlist a percorrer e o nome do CSV (sem a extensão). */
+    public record Fonte(String titulo, String playlistId, String nomeArquivo) {
     }
 
     public record VideoDoCanal(String youtubeId, String titulo) {
     }
 
-    /** Aceita @handle, link do canal (youtube.com/@handle) ou o id do canal (UC...). */
-    public Canal resolverCanal(String entrada) {
+    /** Aceita link de playlist (com {@code list=}), @handle, link do canal (youtube.com/@handle) ou o id do canal (UC...). */
+    public Fonte resolverFonte(String entrada) {
+        Matcher lista = LISTA.matcher(entrada);
+        return lista.find() ? resolverPlaylist(lista.group(1), entrada) : resolverCanal(entrada);
+    }
+
+    private Fonte resolverCanal(String entrada) {
         Matcher handle = HANDLE.matcher(entrada);
         Matcher id = ID_CANAL.matcher(entrada);
         String handleLimpo = handle.find() ? handle.group(1) : null;
@@ -59,8 +69,23 @@ public class YouTubeCanalClient {
         ItemCanal item = resposta.items().get(0);
         String titulo = item.snippet() != null ? item.snippet().title() : consulta;
         String uploads = item.contentDetails().relatedPlaylists().uploads();
-        String base = handleLimpo != null ? handleLimpo : titulo;
-        return new Canal(titulo, uploads, slug(base));
+        // handle ou título podem não ter letra ASCII: o id do canal (vindo da resposta) é a reserva do nome
+        return new Fonte(titulo, uploads, slug(handleLimpo != null ? handleLimpo : titulo, item.id()));
+    }
+
+    private Fonte resolverPlaylist(String playlistId, String entrada) {
+        if (playlistId.startsWith("RD") || LISTAS_PESSOAIS.contains(playlistId)) {
+            throw new IllegalArgumentException("Mixes automáticos e listas pessoais (Assistir mais tarde, Gostei) "
+                    + "não podem ser lidos pela API. Use uma playlist pública.");
+        }
+        RespostaPlaylists resposta = api.get(uri -> uri.path("/playlists")
+                .queryParam("part", "snippet").queryParam("id", playlistId).build(), RespostaPlaylists.class);
+        if (resposta == null || resposta.items() == null || resposta.items().isEmpty()) {
+            throw new IllegalArgumentException("Playlist não encontrada ou privada: " + entrada);
+        }
+        Snippet snippet = resposta.items().get(0).snippet();
+        String titulo = snippet != null && snippet.title() != null ? snippet.title() : playlistId;
+        return new Fonte(titulo, playlistId, ListaDeVideos.PREFIXO_PLAYLIST + slug(titulo, playlistId));
     }
 
     /**
@@ -139,9 +164,18 @@ public class YouTubeCanalClient {
         }
     }
 
-    static String slug(String texto) {
-        String s = texto.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9_-]+", "-").replaceAll("^-+|-+$", "");
+    /** Nome de arquivo seguro; se o texto não tiver letra ASCII, usa a reserva (o id do canal ou da playlist). */
+    static String slug(String texto, String reserva) {
+        String s = normalizar(texto);
+        if (s.isEmpty()) {
+            s = normalizar(reserva);
+        }
         return s.isEmpty() ? "canal" : s;
+    }
+
+    private static String normalizar(String texto) {
+        return texto == null ? ""
+                : texto.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9_-]+", "-").replaceAll("^-+|-+$", "");
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -149,11 +183,19 @@ public class YouTubeCanalClient {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    record ItemCanal(SnippetCanal snippet, ConteudoCanal contentDetails) {
+    record ItemCanal(String id, Snippet snippet, ConteudoCanal contentDetails) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    record SnippetCanal(String title) {
+    record Snippet(String title) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record RespostaPlaylists(List<Playlist> items) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record Playlist(Snippet snippet) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

@@ -241,6 +241,10 @@ mark {
 .lateral { display: flex; flex-direction: column; gap: 16px; min-width: 0; max-height: calc(100dvh - 108px); }
 .pratica { padding: 14px 16px; flex: none; }
 .pratica-topo { display: flex; align-items: center; gap: 12px; min-height: 36px; }
+.pratica-alvo { margin-top: 10px; display: grid; gap: 2px; }
+#alvo-original { font: 500 1.05rem/1.35 var(--serif); }
+.alvo-latino { color: var(--suave); font-size: .9rem; }
+#alvo-original, .alvo-latino { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .seg { display: inline-flex; flex: none; border: var(--traco); border-radius: 10px; overflow: hidden; }
 .seg button { height: 32px; padding: 0 14px; background: transparent; border: 0; font-weight: 600; font-size: .85rem; cursor: pointer; }
 .seg button + button { border-left: var(--traco); }

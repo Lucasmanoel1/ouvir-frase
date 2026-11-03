@@ -5,7 +5,18 @@ import { listarIdiomas } from './api.js';
 
 const idiomaSel = $('idioma'), pilula = $('pilula-idioma');
 
+/** O servidor buscou em outro idioma: o seletor acompanha e a pílula ganha um ponto até a próxima interação. */
+export function aplicarIdiomaDetectado(codigo) {
+  busca.idioma = codigo;
+  if ([...idiomaSel.options].some((o) => o.value === codigo)) idiomaSel.value = codigo;
+  pilula.setAttribute('data-trocou', '');
+}
+
+export function limparSinal() { pilula.removeAttribute('data-trocou'); }
+
 export async function iniciarIdiomas(params) {
+  idiomaSel.addEventListener('focus', limparSinal);
+  idiomaSel.addEventListener('change', limparSinal);
   try {
     const codigos = await listarIdiomas();
     if (codigos.length > 0) {

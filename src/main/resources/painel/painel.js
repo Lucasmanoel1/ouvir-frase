@@ -1,10 +1,13 @@
-// Painel de ingestão: cola o link do canal e acompanha o andamento.
+// Painel de ingestão: cola o link do canal ou da playlist, acompanha o andamento e indexa listas já cadastradas.
 const API = '/api/painel/ingestao';
+const API_LISTAS = '/api/painel/listas';
 const SEM_PAINEL = 'Não consegui falar com o painel. Ele ainda está rodando no terminal?';
 
 const $ = (id) => document.getElementById(id);
-const campos = [$('canal'), $('idioma'), $('max'), $('limite')];
+const campos = [$('link'), $('idioma'), $('max'), $('limite')];
 const enviar = $('enviar'), andamento = $('andamento');
+const listasVazio = $('cadastradas-vazio');
+const TEXTO_SEM_LISTAS = listasVazio.textContent;
 
 let consulta = null;
 let digitou = false;
@@ -35,8 +38,8 @@ function ondas() {
   return caixa;
 }
 
-function botao(rotulo, nomeIcone, aoClicar) {
-  const b = el('button', 'btn primario');
+function botao(rotulo, nomeIcone, aoClicar, classe = 'btn primario') {
+  const b = el('button', classe);
   b.type = 'button';
   b.append(el('span', null, rotulo), icone(nomeIcone));
   b.addEventListener('click', aoClicar);
@@ -51,21 +54,75 @@ function relatorio(texto) {
 }
 
 function erroLocal(mensagem) {
-  return { situacao: 'ERRO', mensagem, relatorio: null, adiados: 0, pedido: null };
+  return { situacao: 'ERRO', mensagem, relatorio: null, adiados: 0, pedido: null, lista: null };
+}
+
+// "só indexar": a lista já existe em data/, então não se descobre nada de novo no YouTube
+function indexarLista(lista, limite) {
+  return iniciar({ idioma: lista.idioma, lista: lista.nome, limite });
 }
 
 function preencher(pedido) {
   if (!pedido) return;
-  $('canal').value = pedido.canal;
+  if (pedido.link) $('link').value = pedido.link;
   if ([...$('idioma').options].some((o) => o.value === pedido.idioma)) $('idioma').value = pedido.idioma;
   $('max').value = pedido.max;
   $('limite').value = pedido.limite;
+}
+
+function linhaDaLista(l) {
+  const topo = el('div', 'cadastrada-topo');
+  topo.append(el('span', 'cadastrada-nome', l.nome),
+    el('span', 'selo', l.playlist ? 'Playlist' : 'Canal'), el('span', 'selo', l.idioma));
+  const numeros = el('p', 'cadastrada-numeros',
+    l.indexados + ' de ' + l.total + ' indexados · ' + l.descartados + ' descartados · ' + l.pendentes + ' pendentes');
+  const info = el('div', 'cadastrada-info');
+  info.append(topo, numeros);
+
+  const linha = el('li', 'cadastrada');
+  linha.append(info);
+  if (l.pendentes > 0) {
+    linha.append(botao('Ingerir lote', 'arrow-right', () => indexarLista(l, Number($('limite').value)), 'btn pequeno'));
+  }
+  return linha;
+}
+
+function mostrarListas(listas) {
+  const itens = $('cadastradas-itens');
+  itens.textContent = '';
+  listas.forEach((l) => itens.append(linhaDaLista(l)));
+  listasVazio.textContent = TEXTO_SEM_LISTAS;
+  listasVazio.hidden = listas.length > 0;
+  bloquearListas(enviar.disabled);
+}
+
+function bloquearListas(bloqueado) {
+  document.querySelectorAll('.cadastrada .btn').forEach((b) => { b.disabled = bloqueado; });
+}
+
+async function carregarListas() {
+  try {
+    const resposta = await fetch(API_LISTAS);
+    const dados = await resposta.json();
+    if (resposta.ok) {
+      mostrarListas(dados);
+    } else {
+      $('cadastradas-itens').textContent = '';
+      listasVazio.textContent = dados.mensagem || 'Não consegui ler as listas.';
+      listasVazio.hidden = false;
+    }
+  } catch (e) {
+    $('cadastradas-itens').textContent = '';
+    listasVazio.textContent = SEM_PAINEL;
+    listasVazio.hidden = false;
+  }
 }
 
 function mostrar(a) {
   const rodando = a.situacao === 'RODANDO';
   enviar.disabled = rodando;
   campos.forEach((c) => { c.disabled = rodando; });
+  bloquearListas(rodando);
 
   andamento.textContent = '';
   andamento.hidden = a.situacao === 'PARADO';
@@ -81,18 +138,24 @@ function mostrar(a) {
   if (a.situacao === 'CONCLUIDO') {
     const faltam = a.adiados > 0;
     andamento.append(icone('check'),
-      el('h2', null, faltam ? 'Lote concluído' : 'Canal concluído'),
+      el('h2', null, faltam ? 'Lote concluído' : 'Lista concluída'),
       el('p', null, faltam
-        ? 'Faltam ' + a.adiados + ' vídeos deste canal. Clique em Continuar para o próximo lote.'
-        : 'Não há mais vídeos pendentes neste canal.'));
+        ? 'Faltam ' + a.adiados + ' vídeos desta lista. Clique em Continuar para o próximo lote.'
+        : (a.relatorio ? 'Não há mais vídeos pendentes nesta lista.' : a.mensagem)));
     if (a.relatorio) andamento.append(relatorio(a.relatorio));
-    if (faltam) andamento.append(botao('Continuar', 'arrow-right', () => iniciar(a.pedido)));
+    if (faltam && a.lista) {
+      andamento.append(botao('Continuar', 'arrow-right', () => indexarLista(a.lista, a.pedido.limite)));
+    }
     return;
   }
 
   andamento.append(icone('warning'), el('h2', null, 'Não deu certo'), el('p', null, a.mensagem));
   if (a.relatorio) andamento.append(relatorio(a.relatorio));
-  if (a.pedido) andamento.append(botao('Tentar de novo', 'arrow-counter-clockwise', () => iniciar(a.pedido)));
+  if (a.pedido) {
+    // a lista já é conhecida (veio da descoberta ou do pedido): tentar de novo só indexa, sem gastar cota
+    const repetir = () => (a.lista ? indexarLista(a.lista, a.pedido.limite) : iniciar(a.pedido));
+    andamento.append(botao('Tentar de novo', 'arrow-counter-clockwise', repetir));
+  }
 }
 
 function parar() {
@@ -114,6 +177,7 @@ async function atualizar() {
       acompanhar();
     } else {
       parar();
+      carregarListas(); // uma vez ao abrir a página e uma vez no fim de cada lote
     }
     mostrar(a);
   } catch (e) {
@@ -146,7 +210,7 @@ async function iniciar(pedido) {
 $('form').addEventListener('submit', (e) => {
   e.preventDefault();
   iniciar({
-    canal: $('canal').value,
+    link: $('link').value,
     idioma: $('idioma').value,
     max: Number($('max').value),
     limite: Number($('limite').value),

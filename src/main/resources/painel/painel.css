@@ -73,8 +73,26 @@
   max-height: 320px; overflow: auto;
 }
 
+/* listas cadastradas (o tipo e o idioma usam a pílula .selo do style.css; não usar .lista*, que já existe lá) */
+.cadastradas { padding: 24px; display: grid; gap: 14px; }
+.cadastradas h2 { font: 600 1.25rem/1.25 var(--serif); }
+.cadastradas-itens { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.cadastrada {
+  display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px;
+  padding: 12px 14px;
+  background: var(--papel); border: var(--traco); border-radius: var(--raio);
+}
+.cadastrada-info { display: grid; gap: 6px; min-width: 0; }
+.cadastrada-topo { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.cadastrada-nome { font-weight: 600; overflow-wrap: anywhere; }
+.cadastrada .selo { margin-bottom: 0; }
+.cadastrada-numeros { color: var(--suave); font-size: .85rem; font-variant-numeric: tabular-nums; }
+
 @media (max-width: 559px) {
   .painel { padding-left: 16px; padding-right: 16px; }
+  .cadastradas { padding: 18px 16px; }
+  .cadastrada { grid-template-columns: 1fr; }
+  .cadastrada .btn { justify-self: start; }
   .formulario { padding: 18px 16px; }
   .campos { grid-template-columns: 1fr; }
   .pilula-local { font-size: .78rem; padding: 0 10px; text-align: right; height: auto; min-height: 36px; }

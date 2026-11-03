@@ -23,15 +23,15 @@
   <main class="painel">
     <section class="card formulario">
       <div>
-        <h1 class="painel-titulo">Ingerir um canal</h1>
-        <p class="painel-sub">Cole o link do canal. O painel acha os vídeos, confere as legendas e indexa um lote.</p>
+        <h1 class="painel-titulo">Ingerir um canal ou uma playlist</h1>
+        <p class="painel-sub">Cole o link do canal ou da playlist. O painel acha os vídeos, confere as legendas e indexa um lote.</p>
       </div>
 
       <form id="form" autocomplete="off">
         <div class="busca">
-          <input id="canal" type="text" placeholder="https://www.youtube.com/@TEDTalks" aria-label="Link do canal" maxlength="200" required autofocus>
+          <input id="link" type="text" placeholder="https://www.youtube.com/@TEDTalks" aria-label="Link do canal ou da playlist" maxlength="200" required autofocus>
           <button id="enviar" type="submit" class="btn primario">
-            <span>Ingerir canal</span>
+            <span>Ingerir</span>
             <svg class="ic" aria-hidden="true"><use href="icons.svg#i-arrow-right"/></svg>
           </button>
         </div>
@@ -48,7 +48,7 @@
               <option value="pt">Português</option>
               <option value="ja">Japonês</option>
               <option value="ko">Coreano</option>
-              <option value="zh">Chinês</option>
+              <option value="zh-CN">Chinês</option>
               <option value="ru">Russo</option>
             </select>
             <svg class="ic caret" aria-hidden="true"><use href="icons.svg#i-caret-down"/></svg>
@@ -65,7 +65,7 @@
             <label class="campo-num">
               <span>Vídeos a descobrir</span>
               <input id="max" type="number" value="100" min="1" max="500" required>
-              <small>Quantos vídeos novos buscar no canal (1 a 500).</small>
+              <small>Quantos vídeos novos buscar no canal ou na playlist (1 a 500).</small>
             </label>
             <label class="campo-num">
               <span>Vídeos por lote</span>
@@ -78,6 +78,12 @@
     </section>
 
     <section id="andamento" class="card andamento" role="status" aria-live="polite" hidden></section>
+
+    <section id="cadastradas" class="card cadastradas" aria-labelledby="cadastradas-titulo">
+      <h2 id="cadastradas-titulo">Listas cadastradas</h2>
+      <ul id="cadastradas-itens" class="cadastradas-itens"></ul>
+      <p id="cadastradas-vazio" class="dica" hidden>Nenhuma lista em data/. Cole um link acima para criar a primeira.</p>
+    </section>
   </main>
 
   <script type="module" src="painel.js"></script>

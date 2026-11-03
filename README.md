@@ -187,12 +187,13 @@ Uma pasta por idioma em `data/`: `en`, `es`, `fr`, `de`, `it`, `ja`, `ko`, `zh-C
 `GET /api/busca?frase=...&idioma=en` (`idioma` é opcional, padrão `en`). `GET /api/idiomas` lista os idiomas que têm vídeos indexados.
 
 ```json
-{ "resultados": [
+{ "idioma": "en", "resultados": [
   { "youtubeId": "abc123XYZ_-", "titulo": "…", "inicioSeg": 12.4, "fimSeg": 18.0, "legenda": "texto do trecho",
     "pontuacao": 1.0, "exata": true, "legendaAutomatica": false, "legendaTransliterada": null }
 ], "fraseTransliterada": null }
 ```
 
+- `idioma` é o idioma em que a busca foi feita de verdade. Se a frase não existe no idioma pedido (ou está em outra escrita, como `привет` com `idioma=en`), o servidor procura nos outros idiomas indexados que escrevem assim: primeiro onde há resultado **exato**, e só depois onde há aproximado. Quando a frase existe nos dois idiomas (`no`, `hotel`), vale o pedido. Não usa biblioteca de detecção: a escrita (`Character.UnicodeScript`) e o próprio índice decidem.
 - `inicioSeg` já vem com 3 s de antecedência; `fimSeg` é onde termina o último trecho da legenda (o front usa para o loop).
 - As frases exatas vêm primeiro (`exata: true`); depois as aproximadas, com `pontuacao` = palavras casadas / total (mínimo 0,7).
 - `legendaAutomatica` indica a origem da legenda. Na busca, os vídeos de legenda manual vêm antes.
@@ -215,14 +216,14 @@ Vídeo desconhecido: lista vazia.
 
 Página estática (HTML, CSS e JavaScript em módulos ES nativos, sem build) servida pelo próprio Spring. Identidade visual, cores, tipografia e voz em [`docs/identidade-visual.md`](docs/identidade-visual.md).
 
-- **Tela inicial:** busca, seletor de idioma, exemplos, buscas recentes (guardadas só no navegador) e o ritmo "Busque. Ouça. Repita.".
+- **Tela inicial:** busca, seletor de idioma, exemplos do idioma escolhido (mostra 3 por vez; o botão com setas troca por outros), buscas recentes só do idioma atual (guardadas só no navegador) e o ritmo "Busque. Ouça. Repita.".
 - **Estúdio (depois da busca):** player com barra de progresso do trecho, a dock de controles, a legenda com a frase destacada, a faixa de prática e a lista de todas as ocorrências (miniatura, trecho, selo de frase aproximada). No desktop tudo cabe numa tela sem rolar; no celular os controles ficam acima da dobra.
 - **Legenda que acompanha o vídeo:** o cartão mostra a fala do instante atual (também com o vídeo pausado ou depois de arrastar a barra do YouTube), com a frase buscada destacada. Se a API da legenda falhar, o cartão continua mostrando o trecho do resultado.
 - **Tradução no navegador:** abaixo da fala, em fonte menor, a tradução para português. Ela é feita **no seu navegador**, pela [Translator API](https://developer.chrome.com/docs/ai/translator-api) do Chrome: sem servidor, sem custo e sem limite de requisições. Na primeira vez o botão com o ícone de tradução mostra "Ativar tradução" e baixa o modelo do idioma (com o progresso na tela); depois liga e desliga (a escolha fica guardada no navegador) e traduz a fala atual e as duas seguintes. Onde a API não existe, o botão e a linha somem.
 - **Selo "Legenda automática":** aparece no estúdio quando o trecho vem de legenda gerada por reconhecimento de voz, que pode ter erros.
 - **Dock do player:** play/pause, voltar e avançar 2 s, loop do trecho (volta ao início ao chegar em `fimSeg`) e velocidade de 0,25× a 1,5× (lembrada no navegador).
 - **Pronúncia:** o botão de microfone fica sempre visível. O usuário repete a frase buscada (ou o trecho inteiro); o navegador reconhece a fala (Web Speech API) e a página compara palavra por palavra, com porcentagem e as palavras que faltaram. O microfone junta as falas com pausas curtas numa tentativa só e encerra depois de cerca de 1,5 s de silêncio (ou ao clicar em Parar). A linha "Entendi" só aparece quando traz algo a mais que a nota. Em outro alfabeto (russo, coreano...), o cartão de prática mostra a frase ou o trecho também em letras latinas. A comparação é feita no navegador; o servidor só devolve a transliteração. Só funciona no Chrome e no Edge e exige HTTPS fora do `localhost`.
-- **Idioma:** a pílula de idioma fica sempre visível; vira um botão (com seta) quando há mais de um idioma indexado.
+- **Idioma:** a pílula de idioma fica sempre visível; vira um botão (com seta) quando há mais de um idioma indexado. Se a busca cair em outro idioma (ver `idioma` na API), o seletor e o `l=` da URL mudam sozinhos, sem mensagem: a pílula só ganha um ponto laranja, que some na próxima interação. A lista aberta do seletor usa o visual do projeto (cartão, traço e sombra duros), só com CSS.
 - **Link da busca:** `?q=frase&l=idioma`; o botão de link copia o endereço da busca atual.
 
 **Créditos.** Ícones: [Phosphor Icons](https://phosphoricons.com) (MIT). Fontes auto-hospedadas: [Inter](https://rsms.me/inter/) e [Lora](https://github.com/cyrealtype/Lora-Cyrillic) (SIL OFL 1.1), via pacotes `@fontsource`. Miniaturas dos vídeos vêm de `i.ytimg.com`.
@@ -293,6 +294,8 @@ docs/                          # identidade visual e roteiro de vídeo
 <details open>
 <summary><strong>Front e pronúncia</strong></summary>
 
+- O seletor de idioma estilizado (`appearance: base-select`) existe no Chrome e no Edge 135+ e no Safari 27+. No Firefox continua a lista nativa do sistema, que funciona igual.
+- A detecção do idioma só considera idiomas **já indexados**; palavra solta que existe em dois deles fica no idioma escolhido.
 - A transliteração mostra as **letras**, não a pronúncia exata. Japonês com kanji sai em pinyin (`日本語` vira `rì běn yǔ`); avaliar o Kuromoji quando houver japonês indexado.
 - No **Chrome do Android** o reconhecimento continua parando na primeira pausa: lá o `continuous` existe, mas não tem efeito. A junção de falas com pausa vale para computador.
 - O reconhecimento de voz é do navegador (no Chrome e no Edge o áudio vai para os servidores do fabricante). A comparação é por palavra: números falados por extenso e sotaques menos comuns podem ser reconhecidos errado.

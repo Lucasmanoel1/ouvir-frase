@@ -1,62 +1,7 @@
 // Pronúncia: o usuário repete a frase no microfone (Web Speech API) e comparamos palavra por palavra.
 // O OuvirFrase não recebe o áudio: quem reconhece a fala é o serviço de voz do navegador.
 import { $ } from './util.js';
-
-
-// ---------- comparação (pura, sem DOM) ----------
-// Mesma ideia do Normalizador do backend: palavras com letras/marcas/dígitos; chinês e japonês, um caractere por token.
-const CJK = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u;
-const PALAVRA = /[\p{L}\p{M}\p{N}]+(?:'[\p{L}\p{M}\p{N}]+)*/gu;
-
-function tokens(texto) {
-  const limpo = (texto || '').normalize('NFKC').replace(/[’‘]/g, "'").toLowerCase()
-    .replace(/\[[^\]]*\]|\([^)]*\)/g, ' ');
-  const saida = [];
-  for (const m of limpo.match(PALAVRA) || []) {
-    let atual = '';
-    for (const c of m) {
-      if (CJK.test(c)) {
-        if (atual) { saida.push(atual); atual = ''; }
-        saida.push(c);
-      } else {
-        atual += c;
-      }
-    }
-    if (atual) saida.push(atual);
-  }
-  return saida;
-}
-
-// Compara sem acento latino e sem apóstrofo: "está"/"esta" e "dont"/"don't" são erro de reconhecimento, não de pronúncia.
-function chave(token) {
-  return token.normalize('NFD').replace(/[̀-ͯ']/g, '').normalize('NFC');
-}
-
-// Maior subsequência comum (na ordem) entre o que era esperado e o que foi ouvido.
-function comparar(esperado, ouvido) {
-  const e = tokens(esperado), o = tokens(ouvido);
-  const ke = e.map(chave), ko = o.map(chave);
-  const n = e.length, m = o.length;
-  const t = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
-  for (let i = n - 1; i >= 0; i--) {
-    for (let j = m - 1; j >= 0; j--) {
-      t[i][j] = ke[i] === ko[j] ? t[i + 1][j + 1] + 1 : Math.max(t[i + 1][j], t[i][j + 1]);
-    }
-  }
-  const ok = new Array(n).fill(false);
-  let i = 0, j = 0;
-  while (i < n && j < m) {
-    if (ke[i] === ko[j]) { ok[i] = true; i++; j++; }
-    else if (t[i + 1][j] >= t[i][j + 1]) i++;
-    else j++;
-  }
-  const casadas = ok.filter(Boolean).length;
-  return {
-    pontuacao: n === 0 ? 0 : casadas / n,
-    palavras: e.map((texto, k) => ({ texto, ok: ok[k] })),
-    ouvido: o,
-  };
-}
+import { comparar, tokens, deveMostrarOuvido, alternativasDe } from './comparacao.js';
 
 function rotulo(p) {
   if (p >= 0.9) return 'Excelente!';
@@ -81,7 +26,17 @@ const ERROS = {
 };
 const SEM_SUPORTE = 'Este navegador não tem reconhecimento de voz. Use o Chrome ou o Edge.';
 
+const SILENCIO_MS = 1500;        // calado por este tempo depois de falar: encerra
+const ESPERA_INICIAL_MS = 8000;  // ninguém falou ainda (a especificação não define o tempo do "no-speech")
+const TETO_MS = 30000;           // limite de uma tentativa
+
 let config = null, rec = null, ouvindo = false, alvo = 'frase';
+const relogios = { silencio: 0, teto: 0 };
+
+function pararRelogios() {
+  clearTimeout(relogios.silencio);
+  clearTimeout(relogios.teto);
+}
 
 const dica = () => 'Toque no microfone e repita ' + (alvo === 'frase' ? 'a frase.' : 'o trecho.');
 const mensagem = (texto) => { $('mic-status').textContent = texto; };
@@ -99,9 +54,19 @@ function limpar() {
   const antigo = rec;
   rec = null;
   if (antigo) { try { antigo.abort(); } catch (e) { /* já parou */ } }
+  pararRelogios();
   botaoParado();
   $('mic-resultado').hidden = true;
+  mostrarAlvo();
   mensagem(SR ? dica() : SEM_SUPORTE);
+}
+
+// Mostra o que será repetido em letras latinas, quando o texto está em outra escrita (russo, coreano...).
+function mostrarAlvo() {
+  const { texto, latino } = config.getAlvo(alvo);
+  $('pratica-alvo').hidden = !latino;
+  $('alvo-original').textContent = latino ? texto : '';
+  $('alvo-latino').textContent = latino || '';
 }
 
 function mostrarResultado(esperado, alternativas) {
@@ -123,29 +88,40 @@ function mostrarResultado(esperado, alternativas) {
     palavras.append(span);
   }
   $('mic-ouvido').textContent = 'Entendi: "' + ouvido + '"';
+  $('mic-ouvido').hidden = !deveMostrarOuvido(melhor);
   $('mic-resultado').hidden = false;
   mensagem('');
 }
 
 function ouvir() {
   if (ouvindo) { rec.stop(); return; }
-  const esperado = config.getAlvo(alvo);
+  const esperado = config.getAlvo(alvo).texto;
   if (tokens(esperado).length === 0) { mensagem('Não há o que repetir ainda. Faça uma busca primeiro.'); return; }
 
   config.pausar();
   $('mic-resultado').hidden = true;
-  let recebeu = false, falhou = false;
+  let resultados = [], falhou = false;
 
   const minha = new SR();
   rec = minha;
   minha.lang = LOCALE[config.getIdioma()] || config.getIdioma();
-  minha.continuous = false;
-  minha.interimResults = false;
+  minha.continuous = true;
+  minha.interimResults = true;
   minha.maxAlternatives = 3;
+  // stop() (e não abort()) entrega o resultado do áudio já captado
+  const encerrar = () => { try { minha.stop(); } catch (e) { /* já parou */ } };
+  const armarSilencio = (ms) => {
+    clearTimeout(relogios.silencio);
+    relogios.silencio = setTimeout(encerrar, ms);
+  };
   minha.onresult = (ev) => {
     if (rec !== minha) return;
-    recebeu = true;
-    mostrarResultado(esperado, Array.from(ev.results[0], (a) => a.transcript));
+    armarSilencio(SILENCIO_MS);
+    // o navegador reaproveita os objetos de ev.results: guardamos uma cópia
+    resultados = Array.from(ev.results, (r) => ({
+      final: r.isFinal,
+      alternativas: Array.from(r, (a) => a.transcript),
+    }));
   };
   minha.onerror = (ev) => {
     if (rec !== minha || ev.error === 'aborted') return;
@@ -154,8 +130,11 @@ function ouvir() {
   };
   minha.onend = () => {
     if (rec !== minha) return;
+    pararRelogios();
     botaoParado();
-    if (!recebeu && !falhou) mensagem('Não ouvi nada. Tente de novo.');
+    const alternativas = alternativasDe(resultados);
+    if (alternativas.length > 0) mostrarResultado(esperado, alternativas);
+    else if (!falhou) mensagem('Não ouvi nada. Tente de novo.');
   };
 
   ouvindo = true;
@@ -166,6 +145,8 @@ function ouvir() {
   mensagem('Ouvindo… fale agora.');
   try {
     minha.start();
+    armarSilencio(ESPERA_INICIAL_MS);
+    relogios.teto = setTimeout(encerrar, TETO_MS);
   } catch (e) {
     botaoParado();
     mensagem('Não consegui iniciar o microfone.');
@@ -179,7 +160,7 @@ function definirAlvo(novo) {
   limpar();
 }
 
-// config: getAlvo(tipo) -> texto a repetir; getIdioma() -> código do idioma; pausar() -> pausa o vídeo
+// config: getAlvo(tipo) -> { texto a repetir, latino (transliteração ou null) }; getIdioma() -> código do idioma; pausar() -> pausa o vídeo
 function iniciar(opcoes) {
   config = opcoes;
   $('alvo-frase').addEventListener('click', () => definirAlvo('frase'));
@@ -189,4 +170,4 @@ function iniciar(opcoes) {
   $('mic').addEventListener('click', ouvir);
 }
 
-export { iniciar, limpar, tokens, comparar };
+export { iniciar, limpar };

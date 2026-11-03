@@ -18,6 +18,14 @@ jobs:
           java-version: '21'
           cache: maven
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # Testes do front (node:test, sem dependências); o Maven não roda estes.
+      - name: Testes do front
+        run: node --test "src/test/js/*.test.mjs"
+
       # Testcontainers sobe o postgres:16 pelo Docker do runner (já instalado no ubuntu-latest).
       - name: Build e testes
         run: |

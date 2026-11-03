@@ -27,9 +27,9 @@ async function buscar(texto) {
     mostrarStatus('buscando', 'Buscando…');
   }
 
-  let resultados;
+  let resultados, fraseTransliterada;
   try {
-    resultados = await buscarFrases(busca.frase, busca.idioma);
+    ({ resultados, fraseTransliterada } = await buscarFrases(busca.frase, busca.idioma));
   } catch (e) {
     document.body.classList.remove('ocupado');
     pausar();
@@ -41,6 +41,7 @@ async function buscar(texto) {
   document.body.classList.remove('ocupado');
 
   busca.resultados = resultados;
+  busca.fraseTransliterada = fraseTransliterada;
   if (resultados.length === 0) {
     pausar();
     Ferramentas.trechoMudou(null);
@@ -99,7 +100,12 @@ iniciarTraducao(retraduzirFalaAtual);
 iniciarHistorico(buscar);
 Ferramentas.iniciar({ getPlayer, estudoAberto: () => document.body.dataset.estado === 'resultados', aoTempo });
 Pronuncia.iniciar({
-  getAlvo: (tipo) => (tipo === 'trecho' ? (busca.resultados[busca.indice] || {}).legenda : busca.frase),
+  getAlvo: (tipo) => {
+    const r = busca.resultados[busca.indice] || {};
+    return tipo === 'trecho'
+      ? { texto: r.legenda, latino: r.legendaTransliterada }
+      : { texto: busca.frase, latino: busca.fraseTransliterada };
+  },
   getIdioma: () => busca.idioma,
   pausar,
 });

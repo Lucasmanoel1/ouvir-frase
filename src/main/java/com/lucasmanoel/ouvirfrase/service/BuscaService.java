@@ -29,27 +29,28 @@ public class BuscaService {
     private final BuscaRepository buscaRepository;
     private final CasadorPorLacunas casador;
     private final VideoRepository videoRepository;
+    private final Transliterador transliterador;
 
     /** Primeiro as frases exatas; se sobrar espaço, as aproximadas (>= 70% das palavras, na ordem). */
     @Transactional(readOnly = true)
     public RespostaBusca buscar(String frase, String idioma) {
         List<String> palavras = normalizador.tokenizar(frase, idioma);
         if (palavras.isEmpty()) {
-            return new RespostaBusca(List.of());
+            return new RespostaBusca(List.of(), null);
         }
 
         List<ResultadoBusca> resultados = new ArrayList<>(exatos(palavras, idioma));
         if (palavras.size() >= 2 && resultados.size() < LIMITE_RESULTADOS) {
             resultados.addAll(aproximados(palavras, idioma, LIMITE_RESULTADOS - resultados.size()));
         }
-        return new RespostaBusca(resultados);
+        return new RespostaBusca(resultados, transliterador.transliterar(frase, idioma));
     }
 
     private List<ResultadoBusca> exatos(List<String> palavras, String idioma) {
         return buscaRepository.buscarSequencia(palavras, idioma, LIMITE_RESULTADOS).stream()
                 .map(a -> new ResultadoBusca(a.youtubeId(), a.titulo(),
                         Math.max(0.0, a.inicioSeg() - RECUO_SEG), a.fimSeg(), a.legenda(), 1.0, true,
-                        a.legendaAutomatica()))
+                        a.legendaAutomatica(), transliterador.transliterar(a.legenda(), idioma)))
                 .toList();
     }
 
@@ -67,7 +68,7 @@ public class BuscaService {
                 .thenComparingInt(a -> a.casamento().span()));
 
         return achados.stream().limit(limite)
-                .map(a -> montarResultado(a.casamento(), a.videoId(), videos.get(a.videoId())))
+                .map(a -> montarResultado(a.casamento(), a.videoId(), videos.get(a.videoId()), idioma))
                 .toList();
     }
 
@@ -104,12 +105,12 @@ public class BuscaService {
         return achados;
     }
 
-    private ResultadoBusca montarResultado(CasadorPorLacunas.Casamento c, long videoId, Video v) {
+    private ResultadoBusca montarResultado(CasadorPorLacunas.Casamento c, long videoId, Video v, String idioma) {
         String legenda = buscaRepository.legenda(videoId, c.primeira().trechoId(), c.ultima().trechoId());
         return new ResultadoBusca(v.getYoutubeId(), v.getTitulo(),
                 Math.max(0.0, c.primeira().inicioSeg() - RECUO_SEG),
                 buscaRepository.fimDoTrecho(c.ultima().trechoId()), legenda, c.score(), false,
-                v.isLegendaAutomatica());
+                v.isLegendaAutomatica(), transliterador.transliterar(legenda, idioma));
     }
 
     private record Achado(long videoId, CasadorPorLacunas.Casamento casamento) {

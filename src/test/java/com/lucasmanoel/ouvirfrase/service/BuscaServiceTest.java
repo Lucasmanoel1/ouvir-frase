@@ -55,6 +55,19 @@ class BuscaServiceTest {
         assertThat(resposta.resultados().get(0).inicioSeg()).isEqualTo(9.0, within(0.001));
         assertThat(resposta.resultados().get(0).fimSeg()).isEqualTo(15.0, within(0.001));
         assertThat(resposta.resultados().get(0).legenda()).contains("I really love this idea");
+        assertThat(resposta.fraseTransliterada()).isNull();
+        assertThat(resposta.resultados().get(0).legendaTransliterada()).isNull();
+    }
+
+    @Test
+    void deveTransliterarAFraseEALegendaEmRusso() {
+        indexador.indexar("rus001", "Video ru", "ru", List.of(new TrechoLegenda("Привет, друзья", 4.0, 2.0)));
+
+        RespostaBusca resposta = buscaService.buscar("привет", "ru");
+
+        assertThat(resposta.fraseTransliterada()).isEqualTo("privet");
+        assertThat(resposta.resultados()).hasSize(1);
+        assertThat(resposta.resultados().get(0).legendaTransliterada()).startsWith("Privet");
     }
 
     @Test

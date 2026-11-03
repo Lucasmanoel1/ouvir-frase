@@ -25,7 +25,8 @@ class BuscaControllerTest {
     @Test
     void deveDevolverOContratoDaApi() throws Exception {
         when(buscaService.buscar("hello world", "en")).thenReturn(new RespostaBusca(List.of(
-                new ResultadoBusca("abc123XYZ_-", "Titulo", 9.0, 15.0, "well hello world", 1.0, true, true))));
+                new ResultadoBusca("abc123XYZ_-", "Titulo", 9.0, 15.0, "well hello world", 1.0, true, true,
+                        "legenda latina")), "frase latina"));
 
         mockMvc.perform(get("/api/busca").param("frase", "hello world"))
                 .andExpect(status().isOk())
@@ -36,7 +37,9 @@ class BuscaControllerTest {
                 .andExpect(jsonPath("$.resultados[0].legenda").value("well hello world"))
                 .andExpect(jsonPath("$.resultados[0].pontuacao").value(1.0))
                 .andExpect(jsonPath("$.resultados[0].exata").value(true))
-                .andExpect(jsonPath("$.resultados[0].legendaAutomatica").value(true));
+                .andExpect(jsonPath("$.resultados[0].legendaAutomatica").value(true))
+                .andExpect(jsonPath("$.resultados[0].legendaTransliterada").value("legenda latina"))
+                .andExpect(jsonPath("$.fraseTransliterada").value("frase latina"));
     }
 
     @Test

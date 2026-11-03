@@ -1,11 +1,13 @@
 // Buscas recentes (guardadas só no navegador) e frases de exemplo.
-import { $, icone, lerPreferencia, gravarPreferencia } from './util.js';
+import { $, icone, lerPreferencia, gravarPreferencia, fatiaCircular } from './util.js';
 import { busca } from './estado.js';
+import { EXEMPLOS } from './exemplos.js';
 
 const CHAVE = 'ouvirfrase.historico';
-const EXEMPLOS = { en: ['thank you very much', 'you know what', 'a lot of'] };
+const POR_VEZ = 3;
+const paginas = new Map(); // idioma -> página dos exemplos (a primeira é sorteada para não mostrar sempre as mesmas)
 
-const campo = $('frase'), idiomaSel = $('idioma');
+const campo = $('frase');
 let buscar = () => {};
 
 export function iniciarHistorico(aoBuscar) { buscar = aoBuscar; }
@@ -42,16 +44,31 @@ function preencherChips(caixa, titulo, nomeIcone, botoes) {
   caixa.append(rotulo, ...botoes);
 }
 
+function chipTrocar(idioma) {
+  const botao = chip('', () => {
+    paginas.set(idioma, paginas.get(idioma) + 1);
+    renderChips();
+    $('exemplos').querySelector('.chip-trocar')?.focus(); // o redesenho recria o botão: devolve o foco
+  });
+  botao.classList.add('chip-trocar');
+  botao.title = 'Outros exemplos';
+  botao.setAttribute('aria-label', 'Outros exemplos');
+  botao.append(icone('arrows-clockwise'));
+  return botao;
+}
+
 export function renderChips() {
-  const recentes = new Set(lerHistorico().filter((x) => x.l === busca.idioma).map((x) => x.f.toLowerCase()));
-  const exemplos = (EXEMPLOS[busca.idioma] || []).filter((t) => !recentes.has(t.toLowerCase()))
+  const idioma = busca.idioma;
+  const doIdioma = lerHistorico().filter((x) => x.l === idioma);
+  const recentes = new Set(doIdioma.map((x) => x.f.toLowerCase()));
+  const disponiveis = (EXEMPLOS[idioma] || []).filter((t) => !recentes.has(t.toLowerCase()));
+  if (!paginas.has(idioma)) paginas.set(idioma, Math.floor(Math.random() * Math.ceil(disponiveis.length / POR_VEZ)));
+
+  const exemplos = fatiaCircular(disponiveis, paginas.get(idioma) * POR_VEZ, POR_VEZ)
     .map((t) => chip(t, () => { campo.value = t; buscar(t); }));
+  if (disponiveis.length > POR_VEZ) exemplos.push(chipTrocar(idioma));
   preencherChips($('exemplos'), 'Experimente', 'arrow-right', exemplos);
 
-  const historico = lerHistorico().map((x) => chip(x.f, () => {
-    if ([...idiomaSel.options].some((o) => o.value === x.l)) { busca.idioma = x.l; idiomaSel.value = x.l; }
-    campo.value = x.f;
-    buscar(x.f);
-  }));
+  const historico = doIdioma.map((x) => chip(x.f, () => { campo.value = x.f; buscar(x.f); }));
   preencherChips($('historico'), 'Recentes', 'clock-counter-clockwise', historico);
 }

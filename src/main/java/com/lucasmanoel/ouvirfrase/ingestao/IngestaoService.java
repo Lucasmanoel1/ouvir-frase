@@ -1,6 +1,7 @@
 package com.lucasmanoel.ouvirfrase.ingestao;
 
 import com.lucasmanoel.ouvirfrase.ingestao.catalogo.CatalogoDeVideos;
+import com.lucasmanoel.ouvirfrase.ingestao.catalogo.ListaDeVideos;
 import com.lucasmanoel.ouvirfrase.ingestao.catalogo.VideoSemente;
 import com.lucasmanoel.ouvirfrase.ingestao.indexacao.IndexadorDeVideo;
 import com.lucasmanoel.ouvirfrase.ingestao.legenda.FalhaNaBuscaDeLegendaException;
@@ -64,14 +65,18 @@ public class IngestaoService {
     }
 
     /**
-     * @param canal    só os vídeos desse canal (nome do CSV sem a extensão); null = todos
+     * @param lista    só os vídeos dessa lista (idioma e nome do CSV); null = todos
      * @param limite   máximo de vídeos indexados nesta chamada; 0 = sem limite
      * @param progresso recebe uma frase curta a cada passo (o painel mostra na tela)
+     * @throws IllegalArgumentException se a lista foi pedida e não existe
      */
-    public RelatorioIngestao executar(String canal, int limite, Consumer<String> progresso) {
+    public RelatorioIngestao executar(ListaDeVideos lista, int limite, Consumer<String> progresso) {
         List<VideoSemente> sementes = catalogo.carregar(props.dados()).stream()
-                .filter(s -> canal == null || canal.equals(s.canal()))
+                .filter(s -> lista == null || lista.equals(s.lista()))
                 .toList();
+        if (lista != null && sementes.isEmpty()) {
+            throw new IllegalArgumentException("Lista não encontrada: " + lista.idioma() + "/" + lista.nome());
+        }
         Triagem triagem = triar(sementes);
 
         Map<VideoSemente, MotivoDescarte> descartados = new LinkedHashMap<>();
@@ -90,6 +95,21 @@ public class IngestaoService {
         }
         return new RelatorioIngestao(sementes.size(), placar.indexados, triagem.jaIndexados(),
                 triagem.jaDescartados(), placar.adiados, descartados);
+    }
+
+    /** Uma linha por lista cadastrada, para o painel. Só lê o catálogo e o banco: não chama YouTube nem filtro. */
+    public List<ResumoLista> listas() {
+        Map<ListaDeVideos, List<VideoSemente>> porLista = new LinkedHashMap<>();
+        for (VideoSemente s : catalogo.carregar(props.dados())) {
+            porLista.computeIfAbsent(s.lista(), k -> new ArrayList<>()).add(s);
+        }
+        List<ResumoLista> resumos = new ArrayList<>();
+        porLista.forEach((lista, sementes) -> {
+            Triagem triagem = triar(sementes);
+            resumos.add(new ResumoLista(lista.idioma(), lista.nome(), lista.playlist(), sementes.size(),
+                    triagem.jaIndexados(), triagem.jaDescartados(), triagem.novas().size()));
+        });
+        return resumos;
     }
 
     /** Separa o que já foi indexado, o que já foi descartado antes e o que ainda é novo. */

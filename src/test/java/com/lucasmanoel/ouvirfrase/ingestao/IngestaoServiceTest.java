@@ -1,6 +1,7 @@
 package com.lucasmanoel.ouvirfrase.ingestao;
 
 import com.lucasmanoel.ouvirfrase.ingestao.catalogo.CatalogoDeVideos;
+import com.lucasmanoel.ouvirfrase.ingestao.catalogo.ListaDeVideos;
 import com.lucasmanoel.ouvirfrase.ingestao.catalogo.VideoSemente;
 import com.lucasmanoel.ouvirfrase.ingestao.indexacao.IndexadorDeVideo;
 import com.lucasmanoel.ouvirfrase.ingestao.legenda.FalhaNaBuscaDeLegendaException;
@@ -124,15 +125,16 @@ class IngestaoServiceTest {
         VideoSemente b = new VideoSemente("BBBBBBBBBBB", "en", "B", "ted");
         VideoSemente c = new VideoSemente("CCCCCCCCCCC", "en", "C", "ted");
         VideoSemente outro = new VideoSemente("DDDDDDDDDDD", "en", "D", "vox");
+        VideoSemente mesmoNomeOutroIdioma = new VideoSemente("EEEEEEEEEEE", "es", "E", "ted");
         List<TrechoLegenda> trechos = List.of(new TrechoLegenda("hello world", 1.0, 2.0));
-        when(catalogo.carregar(DADOS)).thenReturn(List.of(a, b, c, outro));
+        when(catalogo.carregar(DADOS)).thenReturn(List.of(a, b, c, outro, mesmoNomeOutroIdioma));
         when(filtro.filtrar(List.of(a, b, c))).thenReturn(new ResultadoFiltro(List.of(a, b, c), Map.of()));
         when(legendaProvider.buscar(a.youtubeId(), "en")).thenReturn(Optional.of(new LegendaBaixada(trechos, false)));
         when(legendaProvider.buscar(b.youtubeId(), "en")).thenReturn(Optional.of(new LegendaBaixada(trechos, false)));
         when(indexador.indexar(anyString(), anyString(), eq("en"), eq("ted"), eq(trechos), eq(false))).thenReturn(1);
         List<String> avisos = new ArrayList<>();
 
-        RelatorioIngestao relatorio = service.executar("ted", 2, avisos::add);
+        RelatorioIngestao relatorio = service.executar(new ListaDeVideos("en", "ted"), 2, avisos::add);
 
         assertThat(relatorio.total()).isEqualTo(3);
         assertThat(relatorio.indexados()).isEqualTo(2);
@@ -141,5 +143,34 @@ class IngestaoServiceTest {
                 "Conferindo 3 vídeos novos no YouTube…", "Indexando 1 de 2: A", "Indexando 2 de 2: B");
         verify(legendaProvider, never()).buscar(c.youtubeId(), "en");
         verify(videoRepository, never()).existsByYoutubeId(outro.youtubeId());
+        verify(videoRepository, never()).existsByYoutubeId(mesmoNomeOutroIdioma.youtubeId());
+    }
+
+    @Test
+    void deveResumirAsListasSemChamarOYouTube() {
+        VideoSemente indexado = new VideoSemente("AAAAAAAAAAA", "en", "A", "ted");
+        VideoSemente descartado = new VideoSemente("BBBBBBBBBBB", "en", "B", "ted");
+        VideoSemente pendente = new VideoSemente("CCCCCCCCCCC", "en", "C", "ted");
+        VideoSemente daPlaylist = new VideoSemente("DDDDDDDDDDD", "es", "D", "playlist-abc");
+        when(catalogo.carregar(DADOS)).thenReturn(List.of(indexado, descartado, pendente, daPlaylist));
+        when(videoRepository.existsByYoutubeId(indexado.youtubeId())).thenReturn(true);
+        when(descartadoRepository.existsById(descartado.youtubeId())).thenReturn(true);
+
+        List<ResumoLista> resumos = service.listas();
+
+        assertThat(resumos).containsExactly(
+                new ResumoLista("en", "ted", false, 3, 1, 1, 1),
+                new ResumoLista("es", "playlist-abc", true, 1, 0, 0, 1));
+        verifyNoInteractions(filtro, legendaProvider, indexador);
+    }
+
+    @Test
+    void deveRecusarListaQueNaoExiste() {
+        when(catalogo.carregar(DADOS)).thenReturn(List.of(A));
+
+        assertThatExceptionOfType(IllegalArgumentException.class)
+                .isThrownBy(() -> service.executar(new ListaDeVideos("ru", "nada"), 5, mensagem -> { }))
+                .withMessageContaining("ru/nada");
+        verifyNoInteractions(filtro, legendaProvider, indexador);
     }
 }

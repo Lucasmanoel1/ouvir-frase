@@ -1,18 +1,20 @@
 // Dock do player: play/pause, voltar/avançar, loop do trecho, velocidade e barra de progresso do trecho.
 // Só conversa com o player do YouTube (IFrame API) por meio de getPlayer().
 import { $ } from './util.js';
+import { criarRelogio } from './relogio.js';
 
 const VELOCIDADES = [0.25, 0.5, 0.75, 1, 1.25, 1.5];
 const SALTO_SEG = 2;
 const DURACAO_PADRAO_SEG = 8; // se a API não mandar o fim do trecho
-const TICK_MS = 100;
+const OCULTA_MS = 250; // com a aba em segundo plano o requestAnimationFrame para; o loop do trecho segue por este relógio lento
 const CHAVE_VELOCIDADE = 'ouvirfrase.velocidade';
 // YT.PlayerState (a constante YT só existe depois da API carregar)
 const ENCERRADO = 0, TOCANDO = 1, PAUSADO = 2, EM_FILA = 5, NAO_INICIADO = -1;
 
 let getPlayer = () => null, estudoAberto = () => false, aoTempo = () => {};
 let estadoAtual = NAO_INICIADO;
-let trecho = null, loop = false, velocidade = lerVelocidade(), timer = null;
+let trecho = null, loop = false, velocidade = lerVelocidade(), quadro = 0;
+const relogio = criarRelogio();
 const opcoes = new Map();
 
 function lerVelocidade() {
@@ -32,15 +34,22 @@ const rotuloVelocidade = (v) => String(v).replace('.', ',') + '×';
 // --- trecho atual ---
 function trechoMudou(r) {
   $('progresso').style.width = '0';
+  relogio.zerar();
   if (!r) {
     trecho = null;
-    if (timer) { clearInterval(timer); timer = null; }
+    cancelAnimationFrame(quadro);
+    quadro = 0;
     return;
   }
   const fim = r.fimSeg > r.inicioSeg ? r.fimSeg : r.inicioSeg + DURACAO_PADRAO_SEG;
   trecho = { youtubeId: r.youtubeId, inicio: r.inicioSeg, fim };
-  // o relógio roda com o estudo aberto (não só tocando): a legenda também acompanha pausa e arrasto na barra do YouTube
-  if (!timer) timer = setInterval(tick, TICK_MS);
+  // roda a cada quadro com o estudo aberto (não só tocando): a legenda também acompanha pausa e arrasto na barra do YouTube
+  if (!quadro) quadro = requestAnimationFrame(laco);
+}
+
+function laco() {
+  tick();
+  quadro = trecho ? requestAnimationFrame(laco) : 0;
 }
 
 // Evita agir com o tempo do vídeo anterior enquanto o novo ainda carrega.
@@ -70,7 +79,8 @@ function aoMudarEstado(estado) {
 function tick() {
   const p = getPlayer();
   if (!p || !p.getCurrentTime || !ehOVideoDoTrecho(p)) return;
-  const t = p.getCurrentTime();
+  // getCurrentTime e getPlaybackRate leem o estado que o iframe já mandou (sem ida e volta); o relógio tira a tremida
+  const t = relogio.ler(p.getCurrentTime(), performance.now(), p.getPlaybackRate(), p.getPlayerState() === TOCANDO);
   const fracao = (t - trecho.inicio) / (trecho.fim - trecho.inicio);
   $('progresso').style.width = Math.round(Math.min(1, Math.max(0, fracao)) * 100) + '%';
   if (loop && estadoAtual === TOCANDO && t >= trecho.fim) p.seekTo(trecho.inicio, true);
@@ -149,6 +159,8 @@ function iniciar(config) {
     $('velocidades').append(botao);
   }
   definirVelocidade(velocidade);
+
+  setInterval(() => { if (document.hidden && trecho) tick(); }, OCULTA_MS);
 
   $('tocar').addEventListener('click', alternarTocar);
   $('loop').addEventListener('click', () => definirLoop(!loop));

@@ -77,6 +77,8 @@
 .cadastradas { padding: 24px; display: grid; gap: 14px; }
 .cadastradas h2 { font: 600 1.25rem/1.25 var(--serif); }
 .cadastradas-itens { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+/* mostra até 6 listas (6 x 81 px + 5 espaços); para ver mais, rola dentro do cartão */
+.cadastradas-itens { max-height: 540px; overflow-y: auto; padding-right: 8px; scrollbar-gutter: stable; }
 .cadastrada {
   display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px;
   padding: 12px 14px;

@@ -3,11 +3,13 @@ import { $ } from './util.js';
 import { busca } from './estado.js';
 import { buscarLegenda } from './api.js';
 import { renderLegenda } from './destaque.js';
+import { indiceFalado } from './palavras.js';
 import { prepararTraducao, limparTraducao, mostrarTraducao } from './traducao.js';
 
 const RECUO_SEG = 3; // quanto o backend recua o início do resultado
 
 let cues = null, cueAtual = -2;
+let spans = [], pesos = [], palavraAtual = -1; // palavras da fala na tela e o peso (letras) de cada uma
 
 // Última fala que começou até o instante t; passado um instante do fim dela, nenhuma (música, silêncio).
 function cueEm(t) {
@@ -20,17 +22,38 @@ function cueEm(t) {
   return achado;
 }
 
+// Fim da fala: na legenda automática a duração costuma invadir a fala seguinte, então vale o que vier antes.
+function fimDaFala(i) {
+  const fim = cues[i].inicioSeg + cues[i].duracaoSeg;
+  return i + 1 < cues.length ? Math.min(fim, cues[i + 1].inicioSeg) : fim;
+}
+
 export function aoTempo(t) {
   if (!cues) return;
   const i = cueEm(t);
-  if (i === cueAtual) return;
-  cueAtual = i;
+  if (i !== cueAtual) { cueAtual = i; mostrarFala(i); }
+  if (i < 0) return;
+  const inicio = cues[i].inicioSeg, fim = fimDaFala(i);
+  marcarPalavra(indiceFalado(pesos, fim > inicio ? (t - inicio) / (fim - inicio) : 1));
+}
+
+function mostrarFala(i) {
   const c = i >= 0 ? cues[i] : null;
   const r = busca.resultados[busca.indice];
   // palavras soltas (frase aproximada) só dentro do trecho do resultado, para não marcar "the" em toda fala
   const soltas = !!c && r.exata === false && c.inicioSeg >= r.inicioSeg + RECUO_SEG - 0.1 && c.inicioSeg < r.fimSeg;
-  renderLegenda($('legenda'), c ? c.texto : '', busca.frase, soltas);
+  spans = renderLegenda($('legenda'), c ? c.texto : '', busca.frase, soltas);
+  pesos = spans.map((s) => [...s.textContent].length);
+  palavraAtual = -1;
   traduzirFala(i);
+}
+
+// A barra só troca de palavra quando o índice muda: nada é redesenhado a cada quadro.
+function marcarPalavra(k) {
+  if (k === palavraAtual) return;
+  spans[palavraAtual]?.classList.remove('falando');
+  spans[k]?.classList.add('falando');
+  palavraAtual = k;
 }
 
 // A fala atual e as duas seguintes, para a tradução já ficar pronta quando elas chegarem.

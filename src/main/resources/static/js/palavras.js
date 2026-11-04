@@ -23,3 +23,20 @@ export function palavras(texto) {
   }
   return saida;
 }
+
+/**
+ * Qual palavra está sendo falada: `pesos` = letras de cada palavra (CJK = 1), `fracao` = (t - início) / duração da fala.
+ * Palavra longa ocupa mais tempo. Antes do início → 0; depois do fim → a última; sem palavras → -1.
+ */
+export function indiceFalado(pesos, fracao) {
+  if (pesos.length === 0) return -1;
+  if (!(fracao > 0)) return 0;
+  if (fracao >= 1) return pesos.length - 1;
+  const alvo = fracao * pesos.reduce((a, b) => a + b, 0);
+  let acumulado = 0;
+  for (let k = 0; k < pesos.length; k++) {
+    acumulado += pesos[k];
+    if (alvo < acumulado) return k;
+  }
+  return pesos.length - 1;
+}

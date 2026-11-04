@@ -8,6 +8,7 @@ const campos = [$('link'), $('idioma'), $('max'), $('limite')];
 const enviar = $('enviar'), andamento = $('andamento');
 const listasVazio = $('cadastradas-vazio');
 const TEXTO_SEM_LISTAS = listasVazio.textContent;
+const TEXTO_TUDO_INDEXADO = 'Nenhuma lista com vídeos pendentes. Cole um link acima para adicionar outra.';
 
 let consulta = null;
 let digitou = false;
@@ -81,18 +82,18 @@ function linhaDaLista(l) {
 
   const linha = el('li', 'cadastrada');
   linha.append(info);
-  if (l.pendentes > 0) {
-    linha.append(botao('Ingerir lote', 'arrow-right', () => indexarLista(l, Number($('limite').value)), 'btn pequeno'));
-  }
+  linha.append(botao('Ingerir lote', 'arrow-right', () => indexarLista(l, Number($('limite').value)), 'btn pequeno'));
   return linha;
 }
 
+// Só entram as listas com vídeo pendente: lista concluída sai daqui.
 function mostrarListas(listas) {
+  const pendentes = listas.filter((l) => l.pendentes > 0);
   const itens = $('cadastradas-itens');
   itens.textContent = '';
-  listas.forEach((l) => itens.append(linhaDaLista(l)));
-  listasVazio.textContent = TEXTO_SEM_LISTAS;
-  listasVazio.hidden = listas.length > 0;
+  pendentes.forEach((l) => itens.append(linhaDaLista(l)));
+  listasVazio.textContent = listas.length === 0 ? TEXTO_SEM_LISTAS : TEXTO_TUDO_INDEXADO;
+  listasVazio.hidden = pendentes.length > 0;
   bloquearListas(enviar.disabled);
 }
 

@@ -24,12 +24,13 @@ class BuscaControllerTest {
 
     @Test
     void deveDevolverOContratoDaApi() throws Exception {
-        when(buscaService.buscar("hello world", "en")).thenReturn(new RespostaBusca(List.of(
+        when(buscaService.buscar("hello world", "en")).thenReturn(new RespostaBusca("en", List.of(
                 new ResultadoBusca("abc123XYZ_-", "Titulo", 9.0, 15.0, "well hello world", 1.0, true, true,
                         "legenda latina")), "frase latina"));
 
         mockMvc.perform(get("/api/busca").param("frase", "hello world"))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.idioma").value("en"))
                 .andExpect(jsonPath("$.resultados[0].youtubeId").value("abc123XYZ_-"))
                 .andExpect(jsonPath("$.resultados[0].titulo").value("Titulo"))
                 .andExpect(jsonPath("$.resultados[0].inicioSeg").value(9.0))

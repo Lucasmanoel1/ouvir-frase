@@ -6,7 +6,7 @@ import { iniciarPlayer, getPlayer, pausar } from './player.js';
 import { aoTempo, retraduzirFalaAtual } from './legenda.js';
 import { iniciarTraducao, prepararTraducao } from './traducao.js';
 import { iniciarHistorico, guardarHistorico, renderChips } from './historico.js';
-import { iniciarIdiomas } from './idiomas.js';
+import { iniciarIdiomas, aplicarIdiomaDetectado, limparSinal } from './idiomas.js';
 import { montarLista, mostrar, navegar } from './estudio.js';
 import { mostrarStatus } from './status.js';
 import * as Ferramentas from './ferramentas.js';
@@ -14,10 +14,15 @@ import * as Pronuncia from './pronuncia.js';
 
 const form = $('form-busca'), campo = $('frase'), idiomaSel = $('idioma');
 
+function atualizarUrl() {
+  history.replaceState(null, '', '?q=' + encodeURIComponent(busca.frase) + '&l=' + encodeURIComponent(busca.idioma));
+}
+
 async function buscar(texto) {
   busca.frase = texto.trim();
   if (!busca.frase) return;
-  history.replaceState(null, '', '?q=' + encodeURIComponent(busca.frase) + '&l=' + encodeURIComponent(busca.idioma));
+  limparSinal();
+  atualizarUrl();
   prepararTraducao(busca.idioma, !!(navigator.userActivation && navigator.userActivation.isActive));
   const mantemEstudio = document.body.dataset.estado === 'resultados';
   if (mantemEstudio) {
@@ -27,9 +32,9 @@ async function buscar(texto) {
     mostrarStatus('buscando', 'Buscando…');
   }
 
-  let resultados, fraseTransliterada;
+  let resultados, fraseTransliterada, idiomaUsado;
   try {
-    ({ resultados, fraseTransliterada } = await buscarFrases(busca.frase, busca.idioma));
+    ({ resultados, fraseTransliterada, idioma: idiomaUsado } = await buscarFrases(busca.frase, busca.idioma));
   } catch (e) {
     document.body.classList.remove('ocupado');
     pausar();
@@ -49,6 +54,13 @@ async function buscar(texto) {
     tela('vazio');
     mostrarStatus('vazio', 'Não encontrei essa frase', 'Tente menos palavras ou outro idioma.');
     return;
+  }
+
+  // o servidor achou a frase em outro idioma: o seletor, a URL e o histórico seguem o idioma usado
+  if (idiomaUsado && idiomaUsado !== busca.idioma) {
+    aplicarIdiomaDetectado(idiomaUsado);
+    atualizarUrl();
+    prepararTraducao(idiomaUsado, !!(navigator.userActivation && navigator.userActivation.isActive));
   }
 
   guardarHistorico(busca.frase);

@@ -102,20 +102,56 @@ button, select, input { font: inherit; color: inherit; }
 
 .idioma {
   grid-area: idioma; position: relative;
-  display: inline-flex; align-items: center; gap: 6px;
-  height: 44px; padding: 0 12px;
+  display: inline-flex; align-items: center;
+  height: 44px; padding: 0;
   background: var(--papel-2); border: var(--traco); border-radius: 999px;
   box-shadow: var(--sombra-p); cursor: pointer;
 }
 .idioma:focus-within { outline: 3px solid var(--tinta); outline-offset: 2px; }
 .idioma select {
   appearance: none; -webkit-appearance: none;
-  background: transparent; border: 0; outline: 0; padding: 0 2px;
+  align-self: stretch; padding: 0 38px 0 40px; /* o select ocupa a pílula toda: clicar em qualquer ponto abre a lista */
+  background: transparent; border: 0; outline: 0;
   font-weight: 600; font-size: .92rem; cursor: inherit;
 }
+.idioma .ic { position: absolute; top: 50%; translate: 0 -50%; pointer-events: none; } /* ícones por cima do select, sem pegar o clique */
+.idioma .ic:first-child { left: 12px; }
+.idioma .caret { right: 12px; }
 .idioma select:disabled { opacity: 1; -webkit-text-fill-color: var(--tinta); }
 .idioma[data-unico] { box-shadow: none; background: transparent; border-style: dashed; cursor: default; }
 .idioma[data-unico] .caret { display: none; }
+.idioma[data-unico] select { padding-right: 14px; }
+/* sinal de que o idioma foi trocado sozinho: ponto no canto, some na próxima interação */
+.idioma[data-trocou]::after {
+  content: ""; position: absolute; top: -5px; right: -3px;
+  width: 12px; height: 12px;
+  background: var(--laranja); border: var(--traco); border-radius: 50%;
+  animation: ponto .6s ease-in-out 2;
+}
+
+/* Seletor com a cara do projeto, só onde o navegador deixa estilizar o <select> (Chrome/Edge 135+, Safari 27+).
+   Sem suporte (Firefox), nada disto vale e a lista continua a nativa. */
+@supports (appearance: base-select) {
+  .idioma select,
+  .idioma select::picker(select) { appearance: base-select; }
+  .idioma select { display: flex; align-items: center; background: transparent; border: 0; } /* centraliza o texto na altura da pílula */
+  .idioma select::picker-icon { display: none; } /* a seta é o svg.caret da pílula */
+  .idioma select::picker(select) {
+    min-width: 160px; margin-top: 8px; padding: 6px;
+    background: var(--papel-2); border: var(--traco); border-radius: var(--raio); box-shadow: var(--sombra);
+  }
+  body[data-estado="inicio"] .idioma select::picker(select) { position-area: block-end span-inline-start; }
+  .idioma option {
+    display: flex; align-items: center; gap: 10px;
+    height: 36px; padding: 0 10px; border-radius: 8px;
+    font-weight: 600; font-size: .92rem; cursor: pointer;
+  }
+  .idioma option:hover, .idioma option:focus-visible, .idioma option:checked { background: var(--laranja-claro); }
+  .idioma option::checkmark {
+    content: ""; order: 1; margin-left: auto; width: 1em; height: 1em;
+    background: currentColor; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'%3E%3Cpath d='M232.49,80.49l-128,128a12,12,0,0,1-17,0l-56-56a12,12,0,1,1,17-17L96,183,215.51,63.51a12,12,0,0,1,17,17Z'/%3E%3C/svg%3E") center / contain no-repeat;
+  }
+}
 
 /* ---------- estados ---------- */
 .inicio, .estudio, .status { display: none; }
@@ -153,6 +189,7 @@ main { max-width: 1320px; margin: 0 auto; padding: 8px 24px 20px; }
 }
 .chip-btn:hover { background: var(--laranja-claro); }
 .chip-btn:active { transform: translateY(1px); }
+.chip-trocar { display: inline-flex; align-items: center; justify-content: center; width: 34px; padding: 0; }
 
 .passos { list-style: none; display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 28px 0 0; padding: 0; text-align: left; }
 .passos li { display: flex; align-items: flex-start; gap: 14px; padding: 18px; animation: entra .35s ease both; }
@@ -285,6 +322,7 @@ mark {
 /* ---------- movimento ---------- */
 @keyframes onda { 0%, 100% { transform: scaleY(.3); } 50% { transform: scaleY(1); } }
 @keyframes entra { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes ponto { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.35); } }
 @keyframes pop { from { opacity: 0; transform: scale(.85); } to { opacity: 1; transform: none; } }
 @keyframes pulso { 0%, 100% { box-shadow: var(--sombra-p), 0 0 0 0 rgba(225, 127, 83, .6); } 50% { box-shadow: var(--sombra-p), 0 0 0 8px rgba(225, 127, 83, 0); } }
 @media (prefers-reduced-motion: reduce) {

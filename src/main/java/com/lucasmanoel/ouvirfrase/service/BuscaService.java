@@ -14,6 +14,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -31,19 +32,57 @@ public class BuscaService {
     private final VideoRepository videoRepository;
     private final Transliterador transliterador;
 
-    /** Primeiro as frases exatas; se sobrar espaço, as aproximadas (>= 70% das palavras, na ordem). */
+    /**
+     * Busca no idioma escolhido; se a frase não existe nele (ou está em outra escrita), procura nos outros
+     * idiomas indexados que escrevem assim. Quando a frase existe nos dois, vale o escolhido.
+     */
     @Transactional(readOnly = true)
     public RespostaBusca buscar(String frase, String idioma) {
-        List<String> palavras = normalizador.tokenizar(frase, idioma);
-        if (palavras.isEmpty()) {
-            return new RespostaBusca(List.of(), null);
+        if (normalizador.tokenizar(frase, idioma).isEmpty()) {
+            return new RespostaBusca(idioma, List.of(), null);
         }
 
+        Set<Character.UnicodeScript> escritas = Escritas.de(frase);
+        if (Escritas.compativel(idioma, escritas)) {
+            List<ResultadoBusca> resultados = buscarEm(frase, idioma);
+            if (!resultados.isEmpty()) {
+                return resposta(frase, idioma, resultados);
+            }
+        }
+
+        // idiomasDisponiveis() já vem do maior índice para o menor
+        List<String> outros = videoRepository.idiomasDisponiveis().stream()
+                .filter(i -> !i.equals(idioma) && Escritas.compativel(i, escritas))
+                .toList();
+        for (String outro : outros) {
+            if (!exatos(normalizador.tokenizar(frase, outro), outro).isEmpty()) {
+                return resposta(frase, outro, buscarEm(frase, outro));
+            }
+        }
+        for (String outro : outros) {
+            List<ResultadoBusca> resultados = buscarEm(frase, outro);
+            if (!resultados.isEmpty()) {
+                return resposta(frase, outro, resultados);
+            }
+        }
+        return resposta(frase, idioma, List.of());
+    }
+
+    /** Primeiro as frases exatas; se sobrar espaço, as aproximadas (>= 70% das palavras, na ordem). */
+    private List<ResultadoBusca> buscarEm(String frase, String idioma) {
+        List<String> palavras = normalizador.tokenizar(frase, idioma);
+        if (palavras.isEmpty()) {
+            return List.of();
+        }
         List<ResultadoBusca> resultados = new ArrayList<>(exatos(palavras, idioma));
         if (palavras.size() >= 2 && resultados.size() < LIMITE_RESULTADOS) {
             resultados.addAll(aproximados(palavras, idioma, LIMITE_RESULTADOS - resultados.size()));
         }
-        return new RespostaBusca(resultados, transliterador.transliterar(frase, idioma));
+        return resultados;
+    }
+
+    private RespostaBusca resposta(String frase, String idioma, List<ResultadoBusca> resultados) {
+        return new RespostaBusca(idioma, resultados, transliterador.transliterar(frase, idioma));
     }
 
     private List<ResultadoBusca> exatos(List<String> palavras, String idioma) {

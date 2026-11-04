@@ -23,3 +23,9 @@ export function lerPreferencia(chave) {
 export function gravarPreferencia(chave, valor) {
   try { localStorage.setItem(chave, valor); } catch (e) { /* ignora */ }
 }
+
+/** Até `n` itens da lista a partir de `inicio` (módulo o tamanho), dando a volta no fim e sem repetir item. */
+export function fatiaCircular(lista, inicio, n) {
+  if (lista.length === 0) return [];
+  return Array.from({ length: Math.min(n, lista.length) }, (_, i) => lista[(inicio + i) % lista.length]);
+}

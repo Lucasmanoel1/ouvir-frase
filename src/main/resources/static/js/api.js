@@ -10,7 +10,11 @@ export async function buscarFrases(frase, idioma) {
     throw new Error(corpo.mensagem || ERRO_PADRAO);
   }
   const dados = await resp.json();
-  return { resultados: dados.resultados || [], fraseTransliterada: dados.fraseTransliterada ?? null };
+  return {
+    idioma: dados.idioma,
+    resultados: dados.resultados || [],
+    fraseTransliterada: dados.fraseTransliterada ?? null,
+  };
 }
 
 export async function listarIdiomas() {

@@ -2,5 +2,5 @@ package com.lucasmanoel.ouvirfrase.dto;
 
 import java.util.List;
 
-public record RespostaBusca(List<ResultadoBusca> resultados, String fraseTransliterada) {
+public record RespostaBusca(String idioma, List<ResultadoBusca> resultados, String fraseTransliterada) {
 }

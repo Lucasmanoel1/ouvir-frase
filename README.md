@@ -80,13 +80,19 @@ docker compose exec db psql -U postgres -d ouvirfrase
 
 ## Ingestão
 
-A ingestão roda **offline**, num perfil à parte, e nunca no site publicado: o site em si não consulta o YouTube. Há dois jeitos de rodar: o **painel** local (cole o link do canal ou da playlist e pronto) ou a linha de comando (seções 1 e 2).
+A ingestão roda **offline**, num perfil à parte, e nunca no site publicado: o site em si não consulta o YouTube. Quem roda é o **painel** local: você cola o link de um canal ou de uma playlist e ele faz o resto.
 
-### Jeito mais simples: o painel
+### O painel
 
 Uma página onde você cola o link de um canal ou de uma playlist e a ingestão roda sozinha. Ela só existe no seu computador: é o perfil `painel`, que escuta apenas em `127.0.0.1:8081`. O site publicado não tem essa página nem essa API.
 
-**Antes de subir:** o banco no ar (`docker compose up -d db`) e a chave da API no `.env` (veja [1. Preparar](#1-preparar)).
+**Antes de subir:** o banco no ar (`docker compose up -d db`) e a chave da API no `.env`.
+
+**Chave da API.** Crie uma chave da **YouTube Data API v3** (Google Cloud) e coloque em `.env` na raiz. O arquivo é ignorado pelo git e só é lido no perfil `ingestao`; a variável de ambiente `YOUTUBE_API_KEY` também serve.
+
+```
+YOUTUBE_API_KEY=sua-chave
+```
 
 1. Suba o painel. Mantenha as aspas e a ordem `ingestao,painel`:
 
@@ -99,57 +105,13 @@ Uma página onde você cola o link de um canal ou de uma playlist e a ingestão 
 4. Acompanhe na tela. No fim aparece o relatório. Se sobrarem vídeos ("Faltam N vídeos"), clique em **Continuar** para o próximo lote.
 5. Terminou? `Ctrl+C` no terminal.
 
-Cada clique em **Ingerir** faz duas coisas: descobre os vídeos novos do canal ou da playlist (grava `data/<idioma>/<canal>.csv`, ou `data/<idioma>/playlist-<nome>.csv` no caso de playlist, como o `--canal` da linha de comando) e indexa **um lote** dessa lista (15 vídeos, com 6 s entre eles). Em **Opções** você muda quantos vídeos descobrir (padrão 100) e o tamanho do lote (padrão 15). Recarregar a página não interrompe nada: ela volta a mostrar o andamento.
+Cada clique em **Ingerir** faz duas coisas: descobre os vídeos novos do canal ou da playlist (grava `data/<idioma>/<canal>.csv`, ou `data/<idioma>/playlist-<nome>.csv` no caso de playlist) e indexa **um lote** dessa lista (15 vídeos, com 6 s entre eles). Em **Opções** você muda quantos vídeos descobrir (padrão 100) e o tamanho do lote (padrão 15). Recarregar a página não interrompe nada: ela volta a mostrar o andamento.
 
 Playlist pode ter vídeos de canais diferentes: todos vão para o mesmo CSV. Mixes automáticos (`list=RD…`) e listas pessoais (Assistir mais tarde, Gostei) são recusados, porque a API do YouTube não lê essas listas: use uma playlist pública.
 
-**Listas cadastradas.** Abaixo do formulário, o painel lista cada CSV de `data/` com o tipo (canal ou playlist), o idioma e as contagens: indexados, descartados e pendentes. **Ingerir lote** indexa um lote da lista sem descobrir nada de novo no YouTube. Depois do lote, **Continuar** (e **Tentar de novo**, se o YouTube bloquear) também só indexam: não gastam cota de descoberta. O total de uma lista não conta o vídeo que já aparece antes em outro CSV (cada vídeo fica só na primeira lista, em ordem de caminho), então pode ser menor que o número de linhas do arquivo.
+**Listas cadastradas.** Abaixo do formulário, o painel lista cada CSV de `data/` com o tipo (canal ou playlist), o idioma e as contagens: indexados, descartados e pendentes. **Ingerir lote** indexa um lote da lista sem descobrir nada de novo no YouTube. Depois do lote, **Continuar** (e **Tentar de novo**, se o YouTube bloquear) também só indexam: não gastam cota de descoberta. O total de uma lista não conta o vídeo que já aparece antes em outro CSV (cada vídeo fica só na primeira lista, em ordem de caminho), então pode ser menor que o número de linhas do arquivo. A lista só aparece enquanto tiver vídeo pendente (lista concluída sai) e o painel mostra até 6 por vez: para ver as outras, role dentro do cartão.
 
-Se o YouTube bloquear o IP (`429`), a tela avisa e o que já foi indexado fica salvo. Espere **horas** e clique em **Tentar de novo** (veja o aviso mais abaixo).
-
-### Pela linha de comando
-
-O mesmo processo em dois passos, sem a página.
-
-#### 1. Preparar
-
-**Chave da API.** Crie uma chave da **YouTube Data API v3** (Google Cloud) e coloque em `.env` na raiz. O arquivo é ignorado pelo git e só é lido no perfil `ingestao`; a variável de ambiente `YOUTUBE_API_KEY` também serve.
-
-```
-YOUTUBE_API_KEY=sua-chave
-```
-
-**Lista de vídeos.** Os vídeos ficam em `data/<idioma>/<canal>.csv` (por exemplo `data/en/ted.csv`), com as colunas `youtube_id,idioma,titulo`. A coluna `idioma` precisa bater com a pasta; o nome do arquivo vira o canal do vídeo. Linhas com `#` são comentário.
-
-Para **descobrir** os vídeos de um canal em vez de montar a lista à mão:
-
-```bash
-./mvnw "-Dspring-boot.run.profiles=ingestao" "-Dspring-boot.run.arguments=--canal=@TED --idioma=en --max=100" spring-boot:run
-```
-
-| Parâmetro | O que faz |
-|---|---|
-| `--canal` | `@handle`, link do canal (`youtube.com/@handle`), id do canal (`UC…`) ou link de playlist (`…list=PL…`). |
-| `--idioma` | Idioma dos vídeos e pasta de destino. Padrão: `en`. |
-| `--max` | Máximo de vídeos novos a gravar. Padrão: `100`. |
-
-Isso só grava ou atualiza o CSV (`data/en/ted.csv`, no exemplo) com vídeos que têm legenda (manual ou automática), duram 60 s ou mais e ainda não são conhecidos. **Revise o arquivo antes de indexar.**
-
-#### 2. Indexar
-
-O comando abaixo funciona no PowerShell e no bash. **Mantenha as aspas:** no PowerShell, sem elas o `-D…=` quebra no ponto.
-
-```bash
-./mvnw "-Dspring-boot.run.profiles=ingestao" "-Dspring-boot.run.arguments=--ingestao.limite=15 --ingestao.pausa-ms=6000" spring-boot:run
-```
-
-| Parâmetro | O que faz | Padrão |
-|---|---|---|
-| `-Dspring-boot.run.profiles=ingestao` | Ativa o perfil de ingestão (sem servidor web). Sem ele, o comando sobe o site. | — |
-| `-Dspring-boot.run.arguments="…"` | Repassa os argumentos abaixo para a aplicação. | — |
-| `--ingestao.limite=N` | Processa no máximo N vídeos por execução. O resto aparece como "adiados" no relatório; rode de novo para continuar. Só vídeos novos contam no limite; descartados em rodadas anteriores não. `0` = sem limite. | `0` |
-| `--ingestao.pausa-ms=N` | Pausa entre vídeos, em milissegundos. Pausa maior reduz o risco de bloqueio do IP; `6000` é o valor usado nos lotes. | `1500` |
-| `--ingestao.dados=pasta` | Pasta raiz dos CSVs. | `data` |
+Se o YouTube bloquear o IP (`429`), a tela avisa e o que já foi indexado fica salvo. Espere **horas** e clique em **Tentar de novo**.
 
 > [!WARNING]
 > **Rode um lote por vez e espere entre eles.** O YouTube bloqueia IPs que fazem muitas requisições (erro `429`). Nos testes, uma segunda execução poucos minutos depois de um lote de 15 vídeos já recebeu `429`. Se acontecer, espere **horas**, não minutos.
@@ -157,8 +119,8 @@ O comando abaixo funciona no PowerShell e no bash. **Mantenha as aspas:** no Pow
 ### Como a ingestão se comporta
 
 - **Vídeos já indexados são pulados.** Rodar de novo não duplica nada.
-- **Problema do vídeo** (não encontrado, não incorporável, sem legenda manual nem automática, sem palavras aproveitáveis) → descarta com motivo e segue. O descarte é gravado em `video_descartado`: nas próximas rodadas o vídeo é pulado sem chamar o YouTube e sem gastar o `--ingestao.limite`. Para reavaliar um vídeo, apague a linha dele: `DELETE FROM video_descartado WHERE motivo = 'SEM_LEGENDA';` (ou `youtube_id = '...'`).
-- **Falha de infraestrutura** (chave inválida, cota, **bloqueio de IP pelo YouTube**) → para tudo, imprime o relatório parcial e sai com erro (código 1). Basta esperar e rodar de novo.
+- **Problema do vídeo** (não encontrado, não incorporável, sem legenda manual nem automática, sem palavras aproveitáveis) → descarta com motivo e segue. O descarte é gravado em `video_descartado`: nas próximas rodadas o vídeo é pulado sem chamar o YouTube e sem gastar o limite do lote. Para reavaliar um vídeo, apague a linha dele: `DELETE FROM video_descartado WHERE motivo = 'SEM_LEGENDA';` (ou `youtube_id = '...'`).
+- **Falha de infraestrutura** (chave inválida, cota, **bloqueio de IP pelo YouTube**) → para tudo e mostra o relatório parcial. Basta esperar e clicar em **Tentar de novo**.
 - **Legenda automática.** Quando o vídeo não tem legenda manual, a automática é aceita e a origem fica registrada em `video.legenda_automatica`. O log marca "(legenda automática)".
 - Ao final, o relatório mostra quantos entraram, quantos já existiam e quantos foram descartados (e por quê):
 
@@ -218,7 +180,7 @@ Página estática (HTML, CSS e JavaScript em módulos ES nativos, sem build) ser
 
 - **Tela inicial:** busca, seletor de idioma, exemplos do idioma escolhido (mostra 3 por vez; o botão com setas troca por outros), buscas recentes só do idioma atual (guardadas só no navegador) e o ritmo "Busque. Ouça. Repita.".
 - **Estúdio (depois da busca):** player com barra de progresso do trecho, a dock de controles, a legenda com a frase destacada, a faixa de prática e a lista de todas as ocorrências (miniatura, trecho, selo de frase aproximada). No desktop tudo cabe numa tela sem rolar; no celular os controles ficam acima da dobra.
-- **Legenda que acompanha o vídeo:** o cartão mostra a fala do instante atual (também com o vídeo pausado ou depois de arrastar a barra do YouTube), com a frase buscada destacada. Se a API da legenda falhar, o cartão continua mostrando o trecho do resultado.
+- **Legenda que acompanha o vídeo:** o cartão mostra a fala do instante atual (também com o vídeo pausado ou depois de arrastar a barra do YouTube), com a frase buscada destacada. Se a API da legenda falhar, o cartão continua mostrando o trecho do resultado. Uma **barra laranja sob a palavra falada** acompanha a fala (também pausado ou depois de arrastar a barra). O tempo vem do player do YouTube e é lido a cada quadro da tela (`requestAnimationFrame`), por um relógio que anda com a velocidade do vídeo e não treme quando o player corrige o tempo (`relogio.js`). O marca-texto laranja continua na frase buscada, que agora casa só palavras inteiras.
 - **Tradução no navegador:** abaixo da fala, em fonte menor, a tradução para português. Ela é feita **no seu navegador**, pela [Translator API](https://developer.chrome.com/docs/ai/translator-api) do Chrome: sem servidor, sem custo e sem limite de requisições. Na primeira vez o botão com o ícone de tradução mostra "Ativar tradução" e baixa o modelo do idioma (com o progresso na tela); depois liga e desliga (a escolha fica guardada no navegador) e traduz a fala atual e as duas seguintes. Onde a API não existe, o botão e a linha somem.
 - **Selo "Legenda automática":** aparece no estúdio quando o trecho vem de legenda gerada por reconhecimento de voz, que pode ter erros.
 - **Dock do player:** play/pause, voltar e avançar 2 s, loop do trecho (volta ao início ao chegar em `fimSeg`) e velocidade de 0,25× a 1,5× (lembrada no navegador).
@@ -276,6 +238,7 @@ docs/                          # identidade visual e roteiro de vídeo
 - Na busca aproximada, palavras muito comuns geram muitos candidatos; há um teto de 20.000 linhas por busca.
 - Acento não é removido (`cafe` ≠ `café`) e `dont` não casa com `don't`.
 - Números aparecem como dígitos na legenda mas são falados por extenso.
+- A barra da palavra falada é **estimada**: o relógio segue o vídeo, mas o tempo de cada palavra é proporcional ao número de letras dentro da fala, então deriva quando há pausa no meio ou quando a legenda aparece antes da voz. Na legenda automática o fim da fala é cortado no início da seguinte. Marcações como `(Laughter)` também recebem a barra. Com a aba em segundo plano a barra não é desenhada (o loop do trecho continua).
 - Chinês e japonês não têm espaço entre palavras: cada caractere é um token, então a busca é por sequência de caracteres. Fora do inglês o apóstrofo separa palavras (`l'homme` vira `l` + `homme`).
 
 </details>
@@ -303,7 +266,3 @@ docs/                          # identidade visual e roteiro de vídeo
 - O volume não passa de 100%: o player do YouTube roda em outro domínio e o navegador não deixa a página amplificar o áudio dele.
 
 </details>
-
-## Próximos passos (pós-MVP)
-
-Quiz e flashcards (exigem login) · deploy.

@@ -4,6 +4,7 @@ import com.lucasmanoel.ouvirfrase.dto.ErroResposta;
 import com.lucasmanoel.ouvirfrase.ingestao.IngestaoService;
 import com.lucasmanoel.ouvirfrase.ingestao.painel.PainelDeIngestao.Andamento;
 import com.lucasmanoel.ouvirfrase.ingestao.painel.PainelDeIngestao.Pedido;
+import com.lucasmanoel.ouvirfrase.ingestao.painel.sugestoes.GeradorDeSugestoes;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpStatus;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.io.UncheckedIOException;
@@ -27,10 +29,12 @@ public class PainelController {
 
     private static final Pattern IDIOMA = Pattern.compile("[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*");
     private static final Pattern LISTA = Pattern.compile("[A-Za-z0-9_-]{1,120}");
+    private static final String IDIOMA_INVALIDO = "Idioma inválido. Use um código como en, es ou pt.";
     private static final int MAX_PADRAO = 100;
 
     private final PainelDeIngestao painel;
     private final IngestaoService ingestao;
+    private final GeradorDeSugestoes gerador;
 
     /**
      * Campos opcionais chegam nulos e ganham o padrão. Com {@code lista}, só indexa essa lista
@@ -52,6 +56,19 @@ public class PainelController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new ErroResposta("listas_ilegiveis", e.getMessage()));
         }
+    }
+
+    /** Síncrono: o clique espera a contagem do índice inteiro (cerca de 17 s por milhão de palavras). */
+    @GetMapping("/sugestoes")
+    public ResponseEntity<?> sugestoes(@RequestParam(defaultValue = "en") String idioma,
+                                       @RequestParam(defaultValue = "6") int minimo) {
+        if (!IDIOMA.matcher(idioma).matches()) {
+            return invalido(IDIOMA_INVALIDO);
+        }
+        if (minimo < 1 || minimo > 100) {
+            return invalido("Mínimo de vídeos: de 1 a 100.");
+        }
+        return ResponseEntity.ok(gerador.gerar(idioma, minimo));
     }
 
     // consumes JSON: um site de fora não consegue enviar isso sem passar por CORS, que não está liberado
@@ -79,7 +96,7 @@ public class PainelController {
             }
         }
         if (!IDIOMA.matcher(idioma).matches()) {
-            return invalido("Idioma inválido. Use um código como en, es ou pt.");
+            return invalido(IDIOMA_INVALIDO);
         }
         if (limite < 1 || limite > 50) {
             return invalido("Vídeos por lote: de 1 a 50.");

@@ -84,6 +84,28 @@
       <ul id="cadastradas-itens" class="cadastradas-itens"></ul>
       <p id="cadastradas-vazio" class="dica" hidden>Nenhuma lista em data/. Cole um link acima para criar a primeira.</p>
     </section>
+
+    <section id="sugestoes" class="card sugestoes" aria-labelledby="sugestoes-titulo">
+      <div>
+        <h2 id="sugestoes-titulo">Sugestões de exemplos</h2>
+        <p class="dica">Frases de 2 a 4 palavras que aparecem em vários vídeos e andam juntas. Escolha um idioma, copie a lista e cole no chat.</p>
+      </div>
+      <div class="sugestoes-controles">
+        <label class="campo-num">
+          <span>Mínimo de vídeos</span>
+          <input id="minimo" type="number" value="6" min="1" max="100" required>
+        </label>
+        <div id="sugestoes-idiomas" class="sugestoes-idiomas"></div>
+      </div>
+      <p id="sugestoes-resumo" class="dica" role="status" hidden></p>
+      <div id="sugestoes-resultado" class="sugestoes-resultado" hidden>
+        <button id="copiar" type="button" class="btn pequeno">
+          <span>Copiar</span>
+          <svg class="ic" aria-hidden="true"><use href="icons.svg#i-copy"/></svg>
+        </button>
+        <ol id="sugestoes-lista" class="sugestoes-lista"></ol>
+      </div>
+    </section>
   </main>
 
   <script type="module" src="painel.js"></script>

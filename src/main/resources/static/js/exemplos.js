@@ -1,5 +1,5 @@
 // Frases de exemplo por idioma (só dados; a lógica está em historico.js).
-// Toda frase precisa dar resultado exato no idioma: escolher da consulta da seção 7 de docs/spec.md, com >= 20 por idioma.
+// Toda frase precisa dar resultado exato no idioma: escolher das **Sugestões de exemplos** do painel de ingestão (só saem frases do índice).
 // Só entram idiomas já indexados de fato.
 export const EXEMPLOS = {
   // as 3 primeiras eram os exemplos antigos; o resto saiu da consulta (cada frase em >= 9 vídeos)

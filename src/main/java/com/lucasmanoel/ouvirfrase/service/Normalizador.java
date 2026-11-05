@@ -34,6 +34,7 @@ public class Normalizador {
             Pattern.compile(CARACTERE_SOLTO + "|" + PALAVRA + "(?:'" + PALAVRA + ")*");
     private static final Pattern TOKEN_SEM_APOSTROFO =
             Pattern.compile(CARACTERE_SOLTO + "|" + PALAVRA);
+    private static final Pattern SO_CARACTERE = Pattern.compile(CARACTERE_SOLTO);
 
     public List<String> tokenizar(String texto, String idioma) {
         if (texto == null || texto.isEmpty()) {
@@ -55,6 +56,24 @@ public class Normalizador {
             tokens.add(matcher.group());
         }
         return tokens;
+    }
+
+    /** Junta tokens para mostrar: espaço entre eles, menos entre dois caracteres soltos (chinês e japonês). */
+    public String juntar(List<String> tokens) {
+        StringBuilder texto = new StringBuilder();
+        String anterior = null;
+        for (String token : tokens) {
+            if (anterior != null && !(soCaractere(anterior) && soCaractere(token))) {
+                texto.append(' ');
+            }
+            texto.append(token);
+            anterior = token;
+        }
+        return texto.toString();
+    }
+
+    private boolean soCaractere(String token) {
+        return SO_CARACTERE.matcher(token).matches();
     }
 
     private boolean mantemApostrofo(String idioma) {

@@ -1,6 +1,11 @@
-// Painel de ingestão: cola o link do canal ou da playlist, acompanha o andamento e indexa listas já cadastradas.
+// Painel de ingestão: cola o link do canal ou da playlist, acompanha o andamento, indexa listas já cadastradas e sugere exemplos.
+import { EXEMPLOS } from './js/exemplos.js';
+import { separarConhecidas, textoParaCopiar, quantos } from './sugestoes.js';
+
 const API = '/api/painel/ingestao';
 const API_LISTAS = '/api/painel/listas';
+const API_IDIOMAS = '/api/idiomas';
+const API_SUGESTOES = '/api/painel/sugestoes';
 const SEM_PAINEL = 'Não consegui falar com o painel. Ele ainda está rodando no terminal?';
 
 const $ = (id) => document.getElementById(id);
@@ -208,6 +213,113 @@ async function iniciar(pedido) {
   }
 }
 
+// Sugestões de exemplos: a contagem é feita no servidor; aqui se pede, se pulam os exemplos que já existem e se copia.
+let copiaveis = [];
+
+const nomeDoIdioma = (codigo) =>
+  [...$('idioma').options].find((o) => o.value === codigo)?.textContent ?? codigo;
+
+function avisarSugestoes(texto) {
+  const aviso = $('sugestoes-resumo');
+  aviso.textContent = texto;
+  aviso.hidden = false;
+}
+
+function falhaDeSugestoes(texto) {
+  $('sugestoes-resultado').hidden = true;
+  avisarSugestoes(texto);
+}
+
+function bloquearSugestoes(bloqueado) {
+  document.querySelectorAll('#sugestoes-idiomas .btn').forEach((b) => { b.disabled = bloqueado; });
+}
+
+async function carregarIdiomasDasSugestoes() {
+  try {
+    const idiomas = await (await fetch(API_IDIOMAS)).json();
+    if (idiomas.length === 0) {
+      avisarSugestoes('Nenhum idioma indexado ainda.');
+      return;
+    }
+    idiomas.forEach((codigo) => {
+      const b = botao(nomeDoIdioma(codigo), 'arrow-right', () => gerarSugestoes(codigo, b), 'btn pequeno');
+      $('sugestoes-idiomas').append(b);
+    });
+  } catch (e) {
+    avisarSugestoes(SEM_PAINEL);
+  }
+}
+
+async function gerarSugestoes(idioma, clicado) {
+  const rotulo = clicado.querySelector('span');
+  const original = rotulo.textContent;
+  rotulo.textContent = 'Gerando…';
+  bloquearSugestoes(true);
+  $('sugestoes-resumo').hidden = true;
+  try {
+    const url = API_SUGESTOES + '?idioma=' + encodeURIComponent(idioma) + '&minimo=' + encodeURIComponent($('minimo').value);
+    const resposta = await fetch(url);
+    const dados = await resposta.json();
+    if (resposta.ok) {
+      mostrarSugestoes(idioma, dados);
+    } else {
+      falhaDeSugestoes(dados.mensagem || 'Pedido inválido.');
+    }
+  } catch (e) {
+    falhaDeSugestoes(SEM_PAINEL);
+  } finally {
+    rotulo.textContent = original;
+    bloquearSugestoes(false);
+  }
+}
+
+function mostrarSugestoes(idioma, sugestoes) {
+  const { novas, puladas } = separarConhecidas(sugestoes, EXEMPLOS[idioma]);
+  copiaveis = novas;
+
+  const lista = $('sugestoes-lista');
+  lista.textContent = '';
+  novas.forEach((s) => {
+    const frase = el('span', 'sugestao-frase', s.frase);
+    frase.lang = idioma;
+    const numeros = el('span', 'sugestao-numeros', quantos(s.videos, 'vídeo', 'vídeos') + ' · ' + quantos(s.vezes, 'vez', 'vezes'));
+    const item = el('li');
+    item.append(frase, numeros);
+    lista.append(item);
+  });
+  $('sugestoes-resultado').hidden = novas.length === 0;
+
+  if (sugestoes.length === 0) {
+    avisarSugestoes('Nenhuma frase passou do mínimo. Tente um mínimo menor.');
+    return;
+  }
+  const total = novas.length === 0 ? 'Nenhuma sugestão nova' : quantos(novas.length, 'sugestão', 'sugestões');
+  const puladasTexto = puladas.length === 0 ? ''
+    : puladas.length === 1 ? ' Uma já estava nos exemplos e ficou de fora.'
+      : ' ' + puladas.length + ' já estavam nos exemplos e ficaram de fora.';
+  avisarSugestoes(total + ' em ' + nomeDoIdioma(idioma) + '.' + puladasTexto);
+}
+
+async function copiar() {
+  const b = $('copiar');
+  const rotulo = b.querySelector('span');
+  const uso = b.querySelector('use');
+  try {
+    await navigator.clipboard.writeText(textoParaCopiar(copiaveis));
+  } catch (e) {
+    avisarSugestoes('Não consegui copiar. Selecione a lista e copie à mão.');
+    return;
+  }
+  rotulo.textContent = 'Copiado';
+  uso.setAttribute('href', 'icons.svg#i-check');
+  setTimeout(() => {
+    rotulo.textContent = 'Copiar';
+    uso.setAttribute('href', 'icons.svg#i-copy');
+  }, 2000);
+}
+
+$('copiar').addEventListener('click', copiar);
+
 $('form').addEventListener('submit', (e) => {
   e.preventDefault();
   iniciar({
@@ -219,3 +331,4 @@ $('form').addEventListener('submit', (e) => {
 });
 
 atualizar();
+carregarIdiomasDasSugestoes();

@@ -111,6 +111,8 @@ Playlist pode ter vídeos de canais diferentes: todos vão para o mesmo CSV. Mix
 
 **Listas cadastradas.** Abaixo do formulário, o painel lista cada CSV de `data/` com o tipo (canal ou playlist), o idioma e as contagens: indexados, descartados e pendentes. **Ingerir lote** indexa um lote da lista sem descobrir nada de novo no YouTube. Depois do lote, **Continuar** (e **Tentar de novo**, se o YouTube bloquear) também só indexam: não gastam cota de descoberta. O total de uma lista não conta o vídeo que já aparece antes em outro CSV (cada vídeo fica só na primeira lista, em ordem de caminho), então pode ser menor que o número de linhas do arquivo. A lista só aparece enquanto tiver vídeo pendente (lista concluída sai) e o painel mostra até 6 por vez: para ver as outras, role dentro do cartão.
 
+**Sugestões de exemplos.** No fim da página, um botão por idioma indexado gera candidatas a frase de exemplo tiradas do próprio índice (cada uma dá resultado exato na busca). Escolha o **mínimo de vídeos** (padrão 6; baixe para idiomas com poucos vídeos, como o russo) e clique no idioma: a lista traz até 150 frases de 2 a 4 palavras, ordenadas por em quantos vídeos aparecem e por quanto as palavras andam juntas. Ficam de fora os pedaços (`a lot` quando `a lot of` é a forma completa), as frases que atravessam dois trechos da legenda e as que só aparecem em uma lista cadastrada (o bordão de um canal). A conta usa o índice inteiro do idioma e leva cerca de 17 s por milhão de palavras. O que já está em `static/js/exemplos.js` não entra (o painel diz quantas foram puladas). **Copiar** põe a lista na área de transferência, uma frase por linha (`frase · N vídeos`), pronta para colar no chat.
+
 Se o YouTube bloquear o IP (`429`), a tela avisa e o que já foi indexado fica salvo. Espere **horas** e clique em **Tentar de novo**.
 
 > [!WARNING]
@@ -218,6 +220,7 @@ src/main/java/com/lucasmanoel/ouvirfrase/
     legenda/                   #   download da legenda (interface LegendaProvider)
     indexacao/                 #   índice invertido: estimador de tempo e IndexadorDeVideo
     painel/                    #   painel local (perfil "painel"): PainelDeIngestao, PainelController, SoLocalFilter
+      sugestoes/               #     sugestões de exemplos: SugestoesRepository (contagem), RankingDeSugestoes, GeradorDeSugestoes
 src/main/resources/
   db/migration/                # Flyway (V1 tabelas, V2 canal, V3 tradução, V4 legenda automática, V5 descartados, V6 remove a tradução)
   painel/                      # página do painel de ingestão (só é servida no perfil "painel")

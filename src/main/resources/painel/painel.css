@@ -73,12 +73,13 @@
   max-height: 320px; overflow: auto;
 }
 
-/* listas cadastradas (o tipo e o idioma usam a pílula .selo do style.css; não usar .lista*, que já existe lá) */
-.cadastradas { padding: 24px; display: grid; gap: 14px; }
-.cadastradas h2 { font: 600 1.25rem/1.25 var(--serif); }
+/* listas cadastradas e sugestões de exemplos (o tipo e o idioma usam a pílula .selo do style.css; não usar .lista*, que já existe lá) */
+.cadastradas, .sugestoes { padding: 24px; display: grid; gap: 14px; }
+.cadastradas h2, .sugestoes h2 { font: 600 1.25rem/1.25 var(--serif); }
 .cadastradas-itens { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
 /* mostra até 6 listas (6 x 81 px + 5 espaços); para ver mais, rola dentro do cartão */
-.cadastradas-itens { max-height: 540px; overflow-y: auto; padding-right: 8px; scrollbar-gutter: stable; }
+/* a lista de sugestões rola do mesmo jeito */
+.cadastradas-itens, .sugestoes-lista { max-height: 540px; overflow-y: auto; padding-right: 8px; scrollbar-gutter: stable; }
 .cadastrada {
   display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px;
   padding: 12px 14px;
@@ -90,9 +91,19 @@
 .cadastrada .selo { margin-bottom: 0; }
 .cadastrada-numeros { color: var(--suave); font-size: .85rem; font-variant-numeric: tabular-nums; }
 
+.sugestoes h2 + .dica { margin-top: 6px; }
+.sugestoes-controles { display: flex; align-items: end; flex-wrap: wrap; gap: 16px; }
+.sugestoes-controles .campo-num { width: 11rem; }
+.sugestoes-idiomas { display: flex; flex-wrap: wrap; gap: 8px; }
+.sugestoes-resultado { display: grid; gap: 10px; justify-items: start; }
+.sugestoes-lista { width: 100%; margin: 0; font-variant-numeric: tabular-nums; }
+.sugestoes-lista li { padding: 3px 0; }
+.sugestao-frase { font-weight: 600; }
+.sugestao-numeros { margin-left: 8px; color: var(--suave); font-size: .85rem; font-variant-numeric: tabular-nums; }
+
 @media (max-width: 559px) {
   .painel { padding-left: 16px; padding-right: 16px; }
-  .cadastradas { padding: 18px 16px; }
+  .cadastradas, .sugestoes { padding: 18px 16px; }
   .cadastrada { grid-template-columns: 1fr; }
   .cadastrada .btn { justify-self: start; }
   .formulario { padding: 18px 16px; }

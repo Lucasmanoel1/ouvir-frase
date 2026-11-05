@@ -158,9 +158,13 @@ function definirAlvo(novo) {
   $('alvo-frase').setAttribute('aria-pressed', String(novo === 'frase'));
   $('alvo-trecho').setAttribute('aria-pressed', String(novo === 'trecho'));
   limpar();
+  if (config.aoMudarAlvo) config.aoMudarAlvo();
 }
 
-// config: getAlvo(tipo) -> { texto a repetir, latino (transliteração ou null) }; getIdioma() -> código do idioma; pausar() -> pausa o vídeo
+/** 'frase' ou 'trecho': o que o usuário escolheu repetir (o loop do player acompanha). */
+const alvoAtual = () => alvo;
+
+// config: getAlvo(tipo) -> { texto a repetir, latino (transliteração ou null) }; getIdioma() -> código do idioma; pausar() -> pausa o vídeo; aoMudarAlvo() -> opcional, avisa a troca entre Frase e Trecho
 function iniciar(opcoes) {
   config = opcoes;
   $('alvo-frase').addEventListener('click', () => definirAlvo('frase'));
@@ -170,4 +174,4 @@ function iniciar(opcoes) {
   $('mic').addEventListener('click', ouvir);
 }
 
-export { iniciar, limpar };
+export { iniciar, limpar, alvoAtual };

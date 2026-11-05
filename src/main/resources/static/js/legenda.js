@@ -6,8 +6,6 @@ import { renderLegenda } from './destaque.js';
 import { indiceFalado } from './palavras.js';
 import { prepararTraducao, limparTraducao, mostrarTraducao } from './traducao.js';
 
-const RECUO_SEG = 3; // quanto o backend recua o início do resultado
-
 let cues = null, cueAtual = -2;
 let spans = [], pesos = [], palavraAtual = -1; // palavras da fala na tela e o peso (letras) de cada uma
 
@@ -41,7 +39,7 @@ function mostrarFala(i) {
   const c = i >= 0 ? cues[i] : null;
   const r = busca.resultados[busca.indice];
   // palavras soltas (frase aproximada) só dentro do trecho do resultado, para não marcar "the" em toda fala
-  const soltas = !!c && r.exata === false && c.inicioSeg >= r.inicioSeg + RECUO_SEG - 0.1 && c.inicioSeg < r.fimSeg;
+  const soltas = !!c && r.exata === false && c.inicioSeg >= r.falaInicioSeg - 0.1 && c.inicioSeg < r.falaFimSeg;
   spans = renderLegenda($('legenda'), c ? c.texto : '', busca.frase, soltas);
   pesos = spans.map((s) => [...s.textContent].length);
   palavraAtual = -1;

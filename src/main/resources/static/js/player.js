@@ -1,15 +1,16 @@
-// Player do YouTube (IFrame Player API).
+// Player do YouTube (IFrame Player API). Um caminho só para tocar: loadVideoById, que aceita segundos fracionários.
 
-let player = null, pronto = false, pendente = null, aoMudarEstado = () => {};
+let player = null, apiPronta = false, playerPronto = false, pedido = null, aoMudarEstado = () => {};
 
-export const getPlayer = () => player;
+// Antes do onReady os métodos do player não existem.
+export const getPlayer = () => (playerPronto ? player : null);
 
 /** Carrega a API do YouTube. O callback global é definido antes de injetar o script, sem corrida. */
 export function iniciarPlayer(aoMudar) {
   aoMudarEstado = aoMudar;
   window.onYouTubeIframeAPIReady = () => {
-    pronto = true;
-    if (pendente) { tocar(pendente); pendente = null; }
+    apiPronta = true;
+    if (pedido) criarPlayer();
   };
   const script = document.createElement('script');
   script.src = 'https://www.youtube.com/iframe_api';
@@ -17,18 +18,22 @@ export function iniciarPlayer(aoMudar) {
   document.head.append(script);
 }
 
-export function tocar(r) {
-  if (!pronto) { pendente = r; return; }
-  const inicio = Math.max(0, Math.floor(r.inicioSeg));
-  if (!player) {
-    player = new YT.Player('player', {
-      videoId: r.youtubeId,
-      playerVars: { start: inicio, autoplay: 1, rel: 0, cc_load_policy: 0, modestbranding: 1, iv_load_policy: 3, playsinline: 1 },
-      events: { onStateChange: (e) => aoMudarEstado(e.data) },
-    });
-  } else {
-    player.loadVideoById({ videoId: r.youtubeId, startSeconds: inicio });
-  }
+/** O pedido mais recente vale: se a API ou o player ainda não estão prontos, eles usam o último. */
+export function tocar(youtubeId, inicioSeg) {
+  pedido = { videoId: youtubeId, startSeconds: inicioSeg };
+  if (playerPronto) player.loadVideoById(pedido);
+  else if (apiPronta && !player) criarPlayer();
+}
+
+// Criado sem videoId (senão o vídeo carregaria duas vezes) e sem start (que só aceita inteiro).
+function criarPlayer() {
+  player = new YT.Player('player', {
+    playerVars: { rel: 0, cc_load_policy: 0, modestbranding: 1, iv_load_policy: 3, playsinline: 1 },
+    events: {
+      onReady: () => { playerPronto = true; player.loadVideoById(pedido); },
+      onStateChange: (e) => aoMudarEstado(e.data),
+    },
+  });
 }
 
 export function pausar() { if (player && player.pauseVideo) player.pauseVideo(); }

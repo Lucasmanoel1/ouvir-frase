@@ -7,7 +7,7 @@ import { aoTempo, retraduzirFalaAtual } from './legenda.js';
 import { iniciarTraducao, prepararTraducao } from './traducao.js';
 import { iniciarHistorico, guardarHistorico, renderChips } from './historico.js';
 import { iniciarIdiomas, aplicarIdiomaDetectado, limparSinal } from './idiomas.js';
-import { montarLista, mostrar, navegar } from './estudio.js';
+import { montarLista, mostrar, navegar, alvoMudou } from './estudio.js';
 import { mostrarStatus } from './status.js';
 import * as Ferramentas from './ferramentas.js';
 import * as Pronuncia from './pronuncia.js';
@@ -120,6 +120,7 @@ Pronuncia.iniciar({
   },
   getIdioma: () => busca.idioma,
   pausar,
+  aoMudarAlvo: alvoMudou,
 });
 
 const params = new URLSearchParams(location.search);

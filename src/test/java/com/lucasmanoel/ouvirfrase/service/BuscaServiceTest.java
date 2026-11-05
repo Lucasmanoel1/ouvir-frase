@@ -47,16 +47,32 @@ class BuscaServiceTest {
     }
 
     @Test
-    void deveAcharFraseQueCruzaDoisTrechosComRecuoDeTresSegundos() {
+    void deveAcharFraseQueCruzaDoisTrechosComOsTemposDoVideo() {
         RespostaBusca resposta = buscaService.buscar("Love THIS idea!", "en");
 
         assertThat(resposta.resultados()).hasSize(1);
         assertThat(resposta.resultados().get(0).youtubeId()).isEqualTo("abc123");
-        assertThat(resposta.resultados().get(0).inicioSeg()).isEqualTo(9.0, within(0.001));
-        assertThat(resposta.resultados().get(0).fimSeg()).isEqualTo(15.0, within(0.001));
+        // love: 3ª de 3 palavras em 10-13 s; idea: 2ª de 2 em 13-15 s ([Music] sai antes de contar)
+        assertThat(resposta.resultados().get(0).inicioSeg()).isEqualTo(12.0, within(0.001));
+        assertThat(resposta.resultados().get(0).ultimaPalavraSeg()).isEqualTo(14.0, within(0.001));
+        assertThat(resposta.resultados().get(0).falaInicioSeg()).isEqualTo(10.0, within(0.001));
+        assertThat(resposta.resultados().get(0).falaFimSeg()).isEqualTo(15.0, within(0.001));
         assertThat(resposta.resultados().get(0).legenda()).contains("I really love this idea");
         assertThat(resposta.fraseTransliterada()).isNull();
         assertThat(resposta.resultados().get(0).legendaTransliterada()).isNull();
+    }
+
+    @Test
+    void deveCortarOFimDaFalaNoInicioDaSeguinte() {
+        // legenda automática: a duração do trecho (20 a 25 s) invade o seguinte, que começa aos 23 s
+        indexador.indexar("auto01", "Video auto", "en", List.of(
+                new TrechoLegenda("we should go", 20.0, 5.0),
+                new TrechoLegenda("right now", 23.0, 4.0)));
+
+        ResultadoBusca r = buscaService.buscar("should go", "en").resultados().get(0);
+
+        assertThat(r.exata()).isTrue();
+        assertThat(r.falaFimSeg()).isEqualTo(23.0, within(0.001));
     }
 
     @Test

@@ -5,15 +5,20 @@ import { criarRelogio } from './relogio.js';
 
 const VELOCIDADES = [0.25, 0.5, 0.75, 1, 1.25, 1.5];
 const SALTO_SEG = 2;
-const DURACAO_PADRAO_SEG = 8; // se a API não mandar o fim do trecho
 const OCULTA_MS = 250; // com a aba em segundo plano o requestAnimationFrame para; o loop do trecho segue por este relógio lento
 const CHAVE_VELOCIDADE = 'ouvirfrase.velocidade';
+// Loop: 'desligado', 'ligado' (só neste resultado) ou 'automatico' (continua ao trocar de resultado).
+const LOOP_VISUAL = {
+  desligado: { icone: 'i-repeat', rotulo: 'Repetir o trecho em loop' },
+  ligado: { icone: 'i-repeat-once', rotulo: 'Loop neste vídeo. Clique duas vezes para seguir nos próximos' },
+  automatico: { icone: 'i-repeat', rotulo: 'Loop automático: segue nos próximos vídeos' },
+};
 // YT.PlayerState (a constante YT só existe depois da API carregar)
 const ENCERRADO = 0, TOCANDO = 1, PAUSADO = 2, EM_FILA = 5, NAO_INICIADO = -1;
 
 let getPlayer = () => null, estudoAberto = () => false, aoTempo = () => {};
 let estadoAtual = NAO_INICIADO;
-let trecho = null, loop = false, velocidade = lerVelocidade(), quadro = 0;
+let trecho = null, loop = 'desligado', velocidade = lerVelocidade(), quadro = 0;
 const relogio = criarRelogio();
 const opcoes = new Map();
 
@@ -32,19 +37,25 @@ function guardarVelocidade() {
 const rotuloVelocidade = (v) => String(v).replace('.', ',') + '×';
 
 // --- trecho atual ---
-function trechoMudou(r) {
+// janela = { inicioLoop, fim } vinda de janela.js; trechoMudou(null) limpa. O loop simples desliga a cada troca; o automático segue.
+function trechoMudou(youtubeId, janela) {
   $('progresso').style.width = '0';
   relogio.zerar();
-  if (!r) {
+  definirLoop(proximoLoop(loop, 'troca'));
+  if (!janela) {
     trecho = null;
     cancelAnimationFrame(quadro);
     quadro = 0;
     return;
   }
-  const fim = r.fimSeg > r.inicioSeg ? r.fimSeg : r.inicioSeg + DURACAO_PADRAO_SEG;
-  trecho = { youtubeId: r.youtubeId, inicio: r.inicioSeg, fim };
+  trecho = { youtubeId, inicio: janela.inicioLoop, fim: janela.fim };
   // roda a cada quadro com o estudo aberto (não só tocando): a legenda também acompanha pausa e arrasto na barra do YouTube
   if (!quadro) quadro = requestAnimationFrame(laco);
+}
+
+// Mesmo resultado, outros limites (a prática trocou entre Frase e Trecho): não mexe no vídeo nem no loop.
+function ajustarJanela(janela) {
+  if (trecho) { trecho.inicio = janela.inicioLoop; trecho.fim = janela.fim; }
 }
 
 function laco() {
@@ -73,7 +84,7 @@ function aoMudarEstado(estado) {
   } else if (estado === PAUSADO || estado === ENCERRADO || estado === EM_FILA || estado === NAO_INICIADO) {
     mostrarTocando(false);
   }
-  if (estado === ENCERRADO && loop) reiniciar();
+  if (estado === ENCERRADO && loop !== 'desligado') reiniciar();
 }
 
 function tick() {
@@ -83,7 +94,7 @@ function tick() {
   const t = relogio.ler(p.getCurrentTime(), performance.now(), p.getPlaybackRate(), p.getPlayerState() === TOCANDO);
   const fracao = (t - trecho.inicio) / (trecho.fim - trecho.inicio);
   $('progresso').style.width = Math.round(Math.min(1, Math.max(0, fracao)) * 100) + '%';
-  if (loop && estadoAtual === TOCANDO && t >= trecho.fim) p.seekTo(trecho.inicio, true);
+  if (loop !== 'desligado' && estadoAtual === TOCANDO && t >= trecho.fim) p.seekTo(trecho.inicio, true);
   aoTempo(t);
 }
 
@@ -94,9 +105,20 @@ function alternarTocar() {
   if (p.getPlayerState() === TOCANDO) p.pauseVideo(); else p.playVideo();
 }
 
-function definirLoop(ativo) {
-  loop = ativo;
-  $('loop').setAttribute('aria-pressed', String(ativo));
+/** Próximo estado do loop. Num clique duplo o navegador dispara click, click e dblclick: o duplo decide no fim. */
+function proximoLoop(modo, evento) {
+  if (evento === 'duplo') return 'automatico';
+  if (evento === 'troca') return modo === 'ligado' ? 'desligado' : modo;
+  return modo === 'desligado' ? 'ligado' : 'desligado';
+}
+
+function definirLoop(modo) {
+  loop = modo;
+  const { icone, rotulo } = LOOP_VISUAL[modo];
+  $('loop').setAttribute('aria-pressed', String(modo !== 'desligado'));
+  $('loop').setAttribute('aria-label', rotulo);
+  $('loop').title = rotulo;
+  $('ic-loop').setAttribute('href', 'icons.svg#' + icone);
 }
 
 function definirVelocidade(v) {
@@ -163,7 +185,8 @@ function iniciar(config) {
   setInterval(() => { if (document.hidden && trecho) tick(); }, OCULTA_MS);
 
   $('tocar').addEventListener('click', alternarTocar);
-  $('loop').addEventListener('click', () => definirLoop(!loop));
+  $('loop').addEventListener('click', () => definirLoop(proximoLoop(loop, 'clique')));
+  $('loop').addEventListener('dblclick', () => definirLoop(proximoLoop(loop, 'duplo')));
   $('recuar').addEventListener('click', () => pular(-SALTO_SEG));
   $('avancar').addEventListener('click', () => pular(SALTO_SEG));
   $('vel-botao').addEventListener('click', () => abrirVelocidades($('velocidades').hidden));
@@ -176,7 +199,7 @@ function iniciar(config) {
     if (!estudoAberto() || e.ctrlKey || e.metaKey || e.altKey) return;
     if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
     switch (e.key.toLowerCase()) {
-      case 'l': definirLoop(!loop); break;
+      case 'l': definirLoop(proximoLoop(loop, 'clique')); break;
       case 'r': reiniciar(); break;
       case ',': pular(-SALTO_SEG); break;
       case '.': pular(SALTO_SEG); break;
@@ -186,4 +209,4 @@ function iniciar(config) {
   });
 }
 
-export { iniciar, trechoMudou, aoMudarEstado };
+export { iniciar, trechoMudou, ajustarJanela, aoMudarEstado, proximoLoop };

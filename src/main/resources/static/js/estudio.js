@@ -3,6 +3,7 @@ import { $ } from './util.js';
 import { busca } from './estado.js';
 import { renderLegenda } from './destaque.js';
 import { tocar } from './player.js';
+import { janelaDoTrecho } from './janela.js';
 import { carregarLegenda } from './legenda.js';
 import * as Ferramentas from './ferramentas.js';
 import * as Pronuncia from './pronuncia.js';
@@ -52,8 +53,9 @@ export function montarLista() {
 export function mostrar() {
   const { resultados, indice } = busca;
   const r = resultados[indice];
-  tocar(r);
-  Ferramentas.trechoMudou(r);
+  const janela = janelaDoTrecho(r, Pronuncia.alvoAtual());
+  tocar(r.youtubeId, janela.inicio);
+  Ferramentas.trechoMudou(r.youtubeId, janela);
   Pronuncia.limpar();
 
   selo.hidden = r.exata !== false;
@@ -74,6 +76,12 @@ export function mostrar() {
       el.removeAttribute('aria-current');
     }
   });
+}
+
+/** A prática trocou entre Frase e Trecho: o loop passa a cobrir o que vai ser repetido. */
+export function alvoMudou() {
+  const r = busca.resultados[busca.indice];
+  if (r) Ferramentas.ajustarJanela(janelaDoTrecho(r, Pronuncia.alvoAtual()));
 }
 
 export function navegar(delta) {

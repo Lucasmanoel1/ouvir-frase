@@ -24,7 +24,7 @@ Sem anúncios. Sem cadastro.
 
 | Busque | Ouça | Repita |
 |---|---|---|
-| Digite uma palavra ou frase em qualquer idioma indexado. | O vídeo toca 3 s antes da frase, com loop e velocidade de 0,25× a 1,5×. | Fale no microfone e veja, palavra por palavra, o que o navegador entendeu. |
+| Digite uma palavra ou frase em qualquer idioma indexado. | O vídeo começa um pouco antes da frase, com loop e velocidade de 0,25× a 1,5×. | Fale no microfone e veja, palavra por palavra, o que o navegador entendeu. |
 
 ---
 
@@ -37,7 +37,7 @@ CSV de vídeos → filtro embeddable → legenda → índice invertido (PostgreS
 
 1. **Ingestão (offline).** Listas curadas de vídeos (`data/<idioma>/<canal>.csv`) são filtradas (só vídeos incorporáveis). A legenda (manual, ou a automática quando não há manual) é baixada, normalizada e gravada em um **índice invertido**.
 2. **Busca (online).** A frase digitada passa pela mesma normalização e é procurada no índice. O usuário nunca consulta o YouTube: a busca lê só o banco.
-3. **Front.** Uma página estática que toca o vídeo (YouTube IFrame Player API) 3 segundos antes da frase e destaca a frase na legenda.
+3. **Front.** Uma página estática que toca o vídeo (YouTube IFrame Player API) um pouco antes da frase e destaca a frase na legenda.
 
 ### Índice invertido (feito à mão no PostgreSQL)
 
@@ -150,13 +150,14 @@ Uma pasta por idioma em `data/`: `en`, `es`, `fr`, `de`, `it`, `ja`, `ko`, `zh-C
 
 ```json
 { "idioma": "en", "resultados": [
-  { "youtubeId": "abc123XYZ_-", "titulo": "…", "inicioSeg": 12.4, "fimSeg": 18.0, "legenda": "texto do trecho",
+  { "youtubeId": "abc123XYZ_-", "titulo": "…", "inicioSeg": 12.0, "ultimaPalavraSeg": 14.0,
+    "falaInicioSeg": 10.0, "falaFimSeg": 15.0, "legenda": "texto do trecho",
     "pontuacao": 1.0, "exata": true, "legendaAutomatica": false, "legendaTransliterada": null }
 ], "fraseTransliterada": null }
 ```
 
 - `idioma` é o idioma em que a busca foi feita de verdade. Se a frase não existe no idioma pedido (ou está em outra escrita, como `привет` com `idioma=en`), o servidor procura nos outros idiomas indexados que escrevem assim: primeiro onde há resultado **exato**, e só depois onde há aproximado. Quando a frase existe nos dois idiomas (`no`, `hotel`), vale o pedido. Não usa biblioteca de detecção: a escrita (`Character.UnicodeScript`) e o próprio índice decidem.
-- `inicioSeg` já vem com 3 s de antecedência; `fimSeg` é onde termina o último trecho da legenda (o front usa para o loop).
+- `inicioSeg` e `ultimaPalavraSeg` são o início **estimado** da primeira e da última palavra; `falaInicioSeg` e `falaFimSeg`, o início e o fim das falas da legenda que as contêm (o fim nunca passa do início da fala seguinte: na legenda automática a duração costuma invadir a próxima). O servidor não recua: as folgas são do front.
 - As frases exatas vêm primeiro (`exata: true`); depois as aproximadas, com `pontuacao` = palavras casadas / total (mínimo 0,7).
 - `legendaAutomatica` indica a origem da legenda. Na busca, os vídeos de legenda manual vêm antes.
 - `fraseTransliterada` e `legendaTransliterada` trazem o texto em letras latinas quando ele está em outra escrita (russo, coreano, chinês...); em texto já latino vêm `null`. Usam o ICU4J (`Russian-Latin/BGN` para `ru`, `Any-Latin` para o resto).
@@ -183,7 +184,7 @@ Página estática (HTML, CSS e JavaScript em módulos ES nativos, sem build) ser
 - **Legenda que acompanha o vídeo:** o cartão mostra a fala do instante atual (também com o vídeo pausado ou depois de arrastar a barra do YouTube), com a frase buscada destacada. Se a API da legenda falhar, o cartão continua mostrando o trecho do resultado. Uma **barra laranja sob a palavra falada** acompanha a fala (também pausado ou depois de arrastar a barra). O tempo vem do player do YouTube e é lido a cada quadro da tela (`requestAnimationFrame`), por um relógio que anda com a velocidade do vídeo e não treme quando o player corrige o tempo (`relogio.js`). O marca-texto laranja continua na frase buscada, que agora casa só palavras inteiras.
 - **Tradução no navegador:** abaixo da fala, em fonte menor, a tradução para português. Ela é feita **no seu navegador**, pela [Translator API](https://developer.chrome.com/docs/ai/translator-api) do Chrome: sem servidor, sem custo e sem limite de requisições. Na primeira vez o botão com o ícone de tradução mostra "Ativar tradução" e baixa o modelo do idioma (com o progresso na tela); depois liga e desliga (a escolha fica guardada no navegador) e traduz a fala atual e as duas seguintes. Onde a API não existe, o botão e a linha somem.
 - **Selo "Legenda automática":** aparece no estúdio quando o trecho vem de legenda gerada por reconhecimento de voz, que pode ter erros.
-- **Dock do player:** play/pause, voltar e avançar 2 s, loop do trecho (volta ao início ao chegar em `fimSeg`) e velocidade de 0,25× a 1,5× (lembrada no navegador).
+- **Dock do player:** play/pause, voltar e avançar 2 s, loop do trecho (um clique: repete só este resultado, com o ícone de "1", e desliga ao trocar de resultado; clique duplo: loop automático, que continua nos próximos resultados; um clique desliga) e velocidade de 0,25× a 1,5× (lembrada no navegador).
 - **Pronúncia:** o botão de microfone fica sempre visível. O usuário repete a frase buscada (ou o trecho inteiro); o navegador reconhece a fala (Web Speech API) e a página compara palavra por palavra, com porcentagem e as palavras que faltaram. O microfone junta as falas com pausas curtas numa tentativa só e encerra depois de cerca de 1,5 s de silêncio (ou ao clicar em Parar). A linha "Entendi" só aparece quando traz algo a mais que a nota. Em outro alfabeto (russo, coreano...), o cartão de prática mostra a frase ou o trecho também em letras latinas. A comparação é feita no navegador; o servidor só devolve a transliteração. Só funciona no Chrome e no Edge e exige HTTPS fora do `localhost`.
 - **Idioma:** a pílula de idioma fica sempre visível; vira um botão (com seta) quando há mais de um idioma indexado. Se a busca cair em outro idioma (ver `idioma` na API), o seletor e o `l=` da URL mudam sozinhos, sem mensagem: a pílula só ganha um ponto laranja, que some na próxima interação. A lista aberta do seletor usa o visual do projeto (cartão, traço e sombra duros), só com CSS.
 - **Link da busca:** `?q=frase&l=idioma`; o botão de link copia o endereço da busca atual.
@@ -233,7 +234,7 @@ docs/                          # identidade visual e roteiro de vídeo
 <details open>
 <summary><strong>Busca e tempo</strong></summary>
 
-- O YouTube não informa o tempo de cada palavra: o início é **estimado** dentro do trecho (distribuição uniforme). O recuo de 3 s cobre a imprecisão. Nos trechos mais longos o erro é maior.
+- O YouTube não informa o tempo de cada palavra: o início é **estimado** dentro do trecho (distribuição uniforme). Por isso o vídeo nunca começa depois do início da fala que contém a frase: recua 3 s (2,5 s no loop e na tecla R) e, se o recuo cair dentro dessa fala, começa no começo dela; se cair na fala anterior, obedece o recuo. O loop termina no fim da fala. No modo **Frase** da prática, os dois lados ficam a no máximo 5 s da frase (fala longa); no modo **Trecho**, valem as falas inteiras. Nos trechos mais longos o erro é maior.
 - A busca tem dois níveis: **exata** (frase inteira, em sequência, no mesmo vídeo) e **aproximada** (≥ 70% das palavras na ordem, dentro de uma janela de 2× o tamanho da frase; só para frases de 2+ palavras). Máximo de 2 resultados por vídeo e 50 no total. O ranking é simples: exatas, depois mais palavras casadas, depois trecho mais compacto; em empate, legenda manual antes da automática.
 - Na busca aproximada, palavras muito comuns geram muitos candidatos; há um teto de 20.000 linhas por busca.
 - Acento não é removido (`cafe` ≠ `café`) e `dont` não casa com `don't`.

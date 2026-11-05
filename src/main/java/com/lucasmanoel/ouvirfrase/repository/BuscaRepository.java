@@ -24,8 +24,8 @@ public class BuscaRepository {
 
     private final EntityManager em;
 
-    public record Acerto(String youtubeId, String titulo, double inicioSeg, double fimSeg, String legenda,
-                         boolean legendaAutomatica) {
+    public record Acerto(String youtubeId, String titulo, double inicioSeg, double ultimaPalavraSeg,
+                         double falaInicioSeg, double falaFimSeg, String legenda, boolean legendaAutomatica) {
     }
 
     @SuppressWarnings("unchecked")
@@ -33,9 +33,12 @@ public class BuscaRepository {
         int n = palavras.size();
 
         StringBuilder sql = new StringBuilder();
-        sql.append("SELECT q.youtube_id, q.titulo, q.inicio_seg, q.fim_seg, q.legenda, q.legenda_automatica FROM (")
+        sql.append("SELECT q.youtube_id, q.titulo, q.inicio_seg, q.ultima_seg, q.fala_inicio_seg, q.fala_fim_seg, q.legenda, q.legenda_automatica FROM (")
            .append("SELECT v.id AS video_id, o1.posicao AS posicao, v.youtube_id, v.titulo, v.legenda_automatica, o1.inicio_seg, ")
-           .append("(tf.inicio_seg + tf.duracao_seg) AS fim_seg, ")
+           .append("o").append(n).append(".inicio_seg AS ultima_seg, t1.inicio_seg AS fala_inicio_seg, ")
+           // na legenda automática a duração invade a fala seguinte: o fim vale até o início dela (least ignora o NULL do último)
+           .append("least(tf.inicio_seg + tf.duracao_seg, (SELECT p.inicio_seg FROM trecho p ")
+           .append("  WHERE p.video_id = tf.video_id AND p.ordem = tf.ordem + 1)) AS fala_fim_seg, ")
            .append("(SELECT string_agg(x.texto, ' ' ORDER BY x.ordem) FROM trecho x ")
            .append("  WHERE x.video_id = o1.video_id AND x.ordem BETWEEN t1.ordem AND tf.ordem) AS legenda, ")
            .append("row_number() OVER (PARTITION BY v.id ORDER BY o1.posicao) AS rn ")
@@ -62,7 +65,8 @@ public class BuscaRepository {
 
         return ((List<Object[]>) query.getResultList()).stream()
                 .map(r -> new Acerto((String) r[0], (String) r[1], ((Number) r[2]).doubleValue(),
-                        ((Number) r[3]).doubleValue(), (String) r[4], (Boolean) r[5]))
+                        ((Number) r[3]).doubleValue(), ((Number) r[4]).doubleValue(), ((Number) r[5]).doubleValue(),
+                        (String) r[6], (Boolean) r[7]))
                 .toList();
     }
 
@@ -94,22 +98,28 @@ public class BuscaRepository {
                 .toList();
     }
 
-    /** Instante em que o trecho termina (início + duração). */
-    public double fimDoTrecho(long trechoId) {
-        Query query = em.createNativeQuery("SELECT inicio_seg + duracao_seg FROM trecho WHERE id = ?1");
-        query.setParameter(1, trechoId);
-        return ((Number) query.getSingleResult()).doubleValue();
+    public record Falas(String texto, double inicioSeg, double fimSeg) {
     }
 
-    /** Texto dos trechos entre o primeiro e o último (inclusive) de um vídeo. */
-    public String legenda(long videoId, long trechoInicio, long trechoFim) {
+    /**
+     * Texto dos trechos entre o primeiro e o último (inclusive), o início do primeiro e o fim do último
+     * (sem passar do início do trecho seguinte, como em buscarSequencia).
+     */
+    public Falas falas(long videoId, long trechoInicio, long trechoFim) {
+        // min/max só escolhem o único valor que passa no FILTER
         Query query = em.createNativeQuery(
-                "SELECT string_agg(x.texto, ' ' ORDER BY x.ordem) FROM trecho x WHERE x.video_id = ?1 "
+                "SELECT string_agg(x.texto, ' ' ORDER BY x.ordem), "
+                        + "min(x.inicio_seg) FILTER (WHERE x.id = ?2), "
+                        + "least(max(x.inicio_seg + x.duracao_seg) FILTER (WHERE x.id = ?3), "
+                        + "(SELECT p.inicio_seg FROM trecho p WHERE p.video_id = ?1 "
+                        + "AND p.ordem = (SELECT ordem FROM trecho WHERE id = ?3) + 1)) "
+                        + "FROM trecho x WHERE x.video_id = ?1 "
                         + "AND x.ordem BETWEEN (SELECT ordem FROM trecho WHERE id = ?2) "
                         + "AND (SELECT ordem FROM trecho WHERE id = ?3)");
         query.setParameter(1, videoId);
         query.setParameter(2, trechoInicio);
         query.setParameter(3, trechoFim);
-        return (String) query.getSingleResult();
+        Object[] r = (Object[]) query.getSingleResult();
+        return new Falas((String) r[0], ((Number) r[1]).doubleValue(), ((Number) r[2]).doubleValue());
     }
 }

@@ -5,7 +5,11 @@ import com.lucasmanoel.ouvirfrase.ingestao.ResumoLista;
 import com.lucasmanoel.ouvirfrase.ingestao.painel.PainelDeIngestao.Andamento;
 import com.lucasmanoel.ouvirfrase.ingestao.painel.PainelDeIngestao.Pedido;
 import com.lucasmanoel.ouvirfrase.ingestao.painel.PainelDeIngestao.Situacao;
+import com.lucasmanoel.ouvirfrase.ingestao.painel.sugestoes.GeradorDeSugestoes;
+import com.lucasmanoel.ouvirfrase.ingestao.painel.sugestoes.Sugestao;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
@@ -19,6 +23,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -32,6 +37,7 @@ class PainelControllerTest {
     @Autowired MockMvc mockMvc;
     @MockitoBean PainelDeIngestao painel;
     @MockitoBean IngestaoService ingestao;
+    @MockitoBean GeradorDeSugestoes gerador;
 
     @Test
     void deveIniciarComOsPadroesQuandoSoOLinkVem() throws Exception {
@@ -178,5 +184,36 @@ class PainelControllerTest {
                 .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.erro").value("listas_ilegiveis"))
                 .andExpect(jsonPath("$.mensagem").isNotEmpty());
+    }
+
+    @Test
+    void deveGerarAsSugestoesDoIdiomaEDoMinimoPedidos() throws Exception {
+        when(gerador.gerar("ru", 3)).thenReturn(List.of(new Sugestao("потому что", 5, 9)));
+
+        mockMvc.perform(get("/api/painel/sugestoes").param("idioma", "ru").param("minimo", "3"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].frase").value("потому что"))
+                .andExpect(jsonPath("$[0].videos").value(5))
+                .andExpect(jsonPath("$[0].vezes").value(9));
+
+        verify(gerador).gerar("ru", 3);
+    }
+
+    @Test
+    void deveUsarInglesEMinimoSeisQuandoNaoVemParametro() throws Exception {
+        mockMvc.perform(get("/api/painel/sugestoes"))
+                .andExpect(status().isOk());
+
+        verify(gerador).gerar("en", 6);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"en,0", "en,101", "../x,6"})
+    void deveRejeitarSugestoesComParametroInvalido(String idioma, int minimo) throws Exception {
+        mockMvc.perform(get("/api/painel/sugestoes").param("idioma", idioma).param("minimo", String.valueOf(minimo)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.erro").value("requisicao_invalida"));
+
+        verifyNoInteractions(gerador);
     }
 }

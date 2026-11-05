@@ -21,7 +21,6 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class BuscaService {
 
-    static final double RECUO_SEG = 3.0;
     static final int LIMITE_RESULTADOS = 50;
     static final int LIMITE_CANDIDATAS = 20_000;
     static final int MAX_APROXIMADOS_POR_VIDEO = 2;
@@ -87,8 +86,8 @@ public class BuscaService {
 
     private List<ResultadoBusca> exatos(List<String> palavras, String idioma) {
         return buscaRepository.buscarSequencia(palavras, idioma, LIMITE_RESULTADOS).stream()
-                .map(a -> new ResultadoBusca(a.youtubeId(), a.titulo(),
-                        Math.max(0.0, a.inicioSeg() - RECUO_SEG), a.fimSeg(), a.legenda(), 1.0, true,
+                .map(a -> new ResultadoBusca(a.youtubeId(), a.titulo(), a.inicioSeg(), a.ultimaPalavraSeg(),
+                        a.falaInicioSeg(), a.falaFimSeg(), a.legenda(), 1.0, true,
                         a.legendaAutomatica(), transliterador.transliterar(a.legenda(), idioma)))
                 .toList();
     }
@@ -145,11 +144,10 @@ public class BuscaService {
     }
 
     private ResultadoBusca montarResultado(CasadorPorLacunas.Casamento c, long videoId, Video v, String idioma) {
-        String legenda = buscaRepository.legenda(videoId, c.primeira().trechoId(), c.ultima().trechoId());
-        return new ResultadoBusca(v.getYoutubeId(), v.getTitulo(),
-                Math.max(0.0, c.primeira().inicioSeg() - RECUO_SEG),
-                buscaRepository.fimDoTrecho(c.ultima().trechoId()), legenda, c.score(), false,
-                v.isLegendaAutomatica(), transliterador.transliterar(legenda, idioma));
+        BuscaRepository.Falas f = buscaRepository.falas(videoId, c.primeira().trechoId(), c.ultima().trechoId());
+        return new ResultadoBusca(v.getYoutubeId(), v.getTitulo(), c.primeira().inicioSeg(), c.ultima().inicioSeg(),
+                f.inicioSeg(), f.fimSeg(), f.texto(), c.score(), false,
+                v.isLegendaAutomatica(), transliterador.transliterar(f.texto(), idioma));
     }
 
     private record Achado(long videoId, CasadorPorLacunas.Casamento casamento) {

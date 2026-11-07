@@ -106,4 +106,27 @@ class BuscaServiceTest {
                 .extracting(ResultadoBusca::legenda)
                 .contains("I really love");
     }
+
+    @Test
+    void deveBuscarComOLimiteDePalavras() {
+        String frase = "alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima mike november oscar";
+        indexador.indexar("lim015", "Video 15 palavras", "en", List.of(new TrechoLegenda(frase, 30.0, 15.0)));
+
+        // 15 palavras = 15 JOINs na busca exata
+        assertThat(buscaService.buscar(frase, "en").resultados())
+                .extracting(ResultadoBusca::youtubeId, ResultadoBusca::exata)
+                .containsExactly(tuple("lim015", true));
+    }
+
+    @Test
+    void devePularIdiomaDeFallbackOndeAFrasePassaDoLimite() {
+        // em inglês são 15 palavras (don't é uma); em espanhol o apóstrofo separa e passam de 20
+        String frase = "don't don't don't don't don't don't don't don't alpha bravo charlie delta echo foxtrot golf";
+        indexador.indexar("spa015", "Video es", "es", List.of(new TrechoLegenda(frase, 5.0, 10.0)));
+
+        RespostaBusca resposta = buscaService.buscar(frase, "en");
+
+        assertThat(resposta.idioma()).isEqualTo("en");
+        assertThat(resposta.resultados()).isEmpty();
+    }
 }

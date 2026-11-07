@@ -1,5 +1,5 @@
 // OuvirFrase: orquestra a busca. Cada parte da tela fica no seu módulo.
-import { $, tela } from './util.js';
+import { $, tela, faltaEsperar } from './util.js';
 import { busca } from './estado.js';
 import { buscarFrases, ERRO_PADRAO } from './api.js';
 import { iniciarPlayer, getPlayer, pausar } from './player.js';
@@ -14,6 +14,9 @@ import * as Pronuncia from './pronuncia.js';
 
 const form = $('form-busca'), campo = $('frase'), idiomaSel = $('idioma');
 
+// "Não encontrei" quase instantâneo parece erro: o "Buscando…" fica na tela pelo menos este tempo.
+const BUSCANDO_MIN_MS = 1500;
+
 function atualizarUrl() {
   history.replaceState(null, '', '?q=' + encodeURIComponent(busca.frase) + '&l=' + encodeURIComponent(busca.idioma));
 }
@@ -24,31 +27,30 @@ async function buscar(texto) {
   limparSinal();
   atualizarUrl();
   prepararTraducao(busca.idioma, !!(navigator.userActivation && navigator.userActivation.isActive));
-  const mantemEstudio = document.body.dataset.estado === 'resultados';
-  if (mantemEstudio) {
-    document.body.classList.add('ocupado');
-  } else {
-    tela('buscando');
-    mostrarStatus('buscando', 'Buscando…');
-  }
+  const inicio = performance.now();
+  const frase = busca.frase;
+  // sempre a tela de busca, também quando já há um vídeo aberto: o estúdio sai de cena (o áudio para junto)
+  pausar();
+  tela('buscando');
+  mostrarStatus('buscando', 'Buscando…');
 
   let resultados, fraseTransliterada, idiomaUsado;
   try {
     ({ resultados, fraseTransliterada, idioma: idiomaUsado } = await buscarFrases(busca.frase, busca.idioma));
   } catch (e) {
-    document.body.classList.remove('ocupado');
-    pausar();
     Ferramentas.trechoMudou(null);
     tela('erro');
     mostrarStatus('erro', 'Algo deu errado', e instanceof TypeError ? ERRO_PADRAO : e.message);
     return;
   }
-  document.body.classList.remove('ocupado');
+  if (resultados.length === 0) {
+    await new Promise((r) => setTimeout(r, faltaEsperar(inicio, performance.now(), BUSCANDO_MIN_MS)));
+    if (busca.frase !== frase) return; // outra busca começou durante a espera
+  }
 
   busca.resultados = resultados;
   busca.fraseTransliterada = fraseTransliterada;
   if (resultados.length === 0) {
-    pausar();
     Ferramentas.trechoMudou(null);
     Pronuncia.limpar();
     tela('vazio');

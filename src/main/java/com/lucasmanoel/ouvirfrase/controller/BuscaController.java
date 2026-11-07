@@ -18,12 +18,15 @@ import java.util.List;
 @RequiredArgsConstructor
 public class BuscaController {
 
+    /** Código de idioma aceito (en, pt-BR, zh-CN...). Também usado pelo painel. */
+    public static final String IDIOMA = "[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*";
+
     private final BuscaService buscaService;
 
     @GetMapping("/busca")
     public RespostaBusca buscar(@RequestParam @NotBlank @Size(max = 200) String frase,
                                 @RequestParam(defaultValue = "en")
-                                @Pattern(regexp = "[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*") String idioma) {
+                                @Pattern(regexp = IDIOMA) @Size(max = 10) String idioma) {
         return buscaService.buscar(frase, idioma);
     }
 

@@ -1,5 +1,6 @@
 package com.lucasmanoel.ouvirfrase.ingestao.painel;
 
+import com.lucasmanoel.ouvirfrase.controller.BuscaController;
 import com.lucasmanoel.ouvirfrase.dto.ErroResposta;
 import com.lucasmanoel.ouvirfrase.ingestao.IngestaoService;
 import com.lucasmanoel.ouvirfrase.ingestao.painel.PainelDeIngestao.Andamento;
@@ -27,7 +28,7 @@ import java.util.regex.Pattern;
 @RequiredArgsConstructor
 public class PainelController {
 
-    private static final Pattern IDIOMA = Pattern.compile("[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*");
+    private static final Pattern IDIOMA = Pattern.compile(BuscaController.IDIOMA);
     private static final Pattern LISTA = Pattern.compile("[A-Za-z0-9_-]{1,120}");
     private static final String IDIOMA_INVALIDO = "Idioma inválido. Use um código como en, es ou pt.";
     private static final int MAX_PADRAO = 100;

@@ -24,6 +24,16 @@ public class BuscaRepository {
 
     private final EntityManager em;
 
+    /**
+     * Limita, em milissegundos, cada consulta do restante desta transação (statement_timeout; 0 desliga). Vale só
+     * até o fim da transação. O valor vai como parâmetro de set_config, nunca no texto do SQL.
+     */
+    public void limitarTempo(long ms) {
+        em.createNativeQuery("SELECT set_config('statement_timeout', ?1, true)")
+                .setParameter(1, Long.toString(ms))
+                .getSingleResult();
+    }
+
     public record Acerto(String youtubeId, String titulo, double inicioSeg, double ultimaPalavraSeg,
                          double falaInicioSeg, double falaFimSeg, String legenda, boolean legendaAutomatica) {
     }
@@ -62,6 +72,43 @@ public class BuscaRepository {
         }
         query.setParameter(n + 1, idioma);
         query.setMaxResults(limite);
+
+        return ((List<Object[]>) query.getResultList()).stream()
+                .map(r -> new Acerto((String) r[0], (String) r[1], ((Number) r[2]).doubleValue(),
+                        ((Number) r[3]).doubleValue(), ((Number) r[4]).doubleValue(), ((Number) r[5]).doubleValue(),
+                        (String) r[6], (Boolean) r[7]))
+                .toList();
+    }
+
+    /**
+     * Busca de uma palavra só. Dá o mesmo resultado de buscarSequencia com uma palavra, mas sem a janela
+     * row_number() sobre todas as ocorrências (numa palavra comum, como "the", seriam milhões de linhas):
+     * escolhe primeiro os 'limite' vídeos que têm a palavra (manual antes de automática, depois id) e só então
+     * pega até MAX_POR_VIDEO ocorrências de cada um com LATERAL. A ordem final é a mesma de buscarSequencia.
+     * Com uma palavra, o fim da frase é a própria palavra e a legenda é o texto do próprio trecho.
+     */
+    @SuppressWarnings("unchecked")
+    public List<Acerto> buscarPalavra(String palavra, String idioma, int limite) {
+        String sql = "SELECT v.youtube_id, v.titulo, o.inicio_seg, o.inicio_seg AS ultima_seg, "
+                + "t.inicio_seg AS fala_inicio_seg, "
+                + "least(t.inicio_seg + t.duracao_seg, (SELECT p.inicio_seg FROM trecho p "
+                + "  WHERE p.video_id = t.video_id AND p.ordem = t.ordem + 1)) AS fala_fim_seg, "
+                + "t.texto AS legenda, v.legenda_automatica "
+                + "FROM (SELECT v.id, v.youtube_id, v.titulo, v.legenda_automatica FROM video v "
+                + "  WHERE v.idioma = :idioma "
+                + "  AND EXISTS (SELECT 1 FROM ocorrencia e WHERE e.palavra = :palavra AND e.video_id = v.id) "
+                + "  ORDER BY v.legenda_automatica, v.id LIMIT :limite) v "
+                + "CROSS JOIN LATERAL (SELECT x.inicio_seg, x.trecho_id, x.posicao, "
+                + "    row_number() OVER (ORDER BY x.posicao) AS rn "
+                + "  FROM ocorrencia x WHERE x.palavra = :palavra AND x.video_id = v.id "
+                + "  ORDER BY x.posicao LIMIT " + MAX_POR_VIDEO + ") o "
+                + "JOIN trecho t ON t.id = o.trecho_id "
+                + "ORDER BY v.legenda_automatica, o.rn, v.id, o.posicao "
+                + "LIMIT :limite";
+        Query query = em.createNativeQuery(sql);
+        query.setParameter("palavra", palavra);
+        query.setParameter("idioma", idioma);
+        query.setParameter("limite", limite);
 
         return ((List<Object[]>) query.getResultList()).stream()
                 .map(r -> new Acerto((String) r[0], (String) r[1], ((Number) r[2]).doubleValue(),

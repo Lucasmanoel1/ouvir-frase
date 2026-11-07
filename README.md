@@ -105,7 +105,7 @@ YOUTUBE_API_KEY=sua-chave
 4. Acompanhe na tela. No fim aparece o relatório. Se sobrarem vídeos ("Faltam N vídeos"), clique em **Continuar** para o próximo lote.
 5. Terminou? `Ctrl+C` no terminal.
 
-Cada clique em **Ingerir** faz duas coisas: descobre os vídeos novos do canal ou da playlist (grava `data/<idioma>/<canal>.csv`, ou `data/<idioma>/playlist-<nome>.csv` no caso de playlist) e indexa **um lote** dessa lista (15 vídeos, com 6 s entre eles). Em **Opções** você muda quantos vídeos descobrir (padrão 100) e o tamanho do lote (padrão 15). Recarregar a página não interrompe nada: ela volta a mostrar o andamento.
+Cada clique em **Ingerir** faz duas coisas: descobre os vídeos novos do canal ou da playlist (grava `data/<idioma>/<canal>.csv`, ou `data/<idioma>/playlist-<nome>.csv` no caso de playlist) e indexa **um lote** dessa lista (15 vídeos, com 20 s entre eles). Em **Opções** você muda quantos vídeos descobrir (padrão 100) e o tamanho do lote (padrão 15). Recarregar a página não interrompe nada: ela volta a mostrar o andamento.
 
 Playlist pode ter vídeos de canais diferentes: todos vão para o mesmo CSV. Mixes automáticos (`list=RD…`) e listas pessoais (Assistir mais tarde, Gostei) são recusados, porque a API do YouTube não lê essas listas: use uma playlist pública.
 
@@ -163,7 +163,16 @@ Uma pasta por idioma em `data/`: `en`, `es`, `fr`, `de`, `it`, `ja`, `ko`, `zh-C
 - As frases exatas vêm primeiro (`exata: true`); depois as aproximadas, com `pontuacao` = palavras casadas / total (mínimo 0,7).
 - `legendaAutomatica` indica a origem da legenda. Na busca, os vídeos de legenda manual vêm antes.
 - `fraseTransliterada` e `legendaTransliterada` trazem o texto em letras latinas quando ele está em outra escrita (russo, coreano, chinês...); em texto já latino vêm `null`. Usam o ICU4J (`Russian-Latin/BGN` para `ru`, `Any-Latin` para o resto).
-- Sem resultado: `resultados` vazio. Frase vazia ou com mais de 200 caracteres: `400`.
+- Sem resultado: `resultados` vazio.
+- Limites: a frase tem até 200 caracteres e **15 palavras** (contadas depois da normalização; em chinês e japonês, 15 caracteres). O idioma tem até 10 caracteres.
+- Tempo: a busca inteira tem um orçamento de 2,5 s (`busca.orcamento`). Passou disso, o banco cancela a consulta em andamento e a API devolve o que já achou (as frases exatas) ou uma lista vazia, em vez de deixar a tela esperando.
+- Erros, sempre em JSON `{ "erro", "mensagem" }`:
+
+| Situação | Status | `erro` |
+|---|---|---|
+| Frase ausente, em branco ou com mais de 200 caracteres; idioma inválido | `400` | `requisicao_invalida` |
+| Mais de 15 palavras ("Use até 15 palavras.") | `400` | `frase_longa` |
+| Consulta lenta demais, pool de conexões esgotado ou banco fora | `503` | `indisponivel` |
 
 ### Legenda completa do vídeo
 
@@ -239,7 +248,7 @@ docs/                          # identidade visual e roteiro de vídeo
 
 - O YouTube não informa o tempo de cada palavra: o início é **estimado** dentro do trecho (distribuição uniforme). Por isso o vídeo nunca começa depois do início da fala que contém a frase: recua 3 s (2,5 s no loop e na tecla R) e, se o recuo cair dentro dessa fala, começa no começo dela; se cair na fala anterior, obedece o recuo. O loop termina no fim da fala. No modo **Frase** da prática, os dois lados ficam a no máximo 5 s da frase (fala longa); no modo **Trecho**, valem as falas inteiras. Nos trechos mais longos o erro é maior.
 - A busca tem dois níveis: **exata** (frase inteira, em sequência, no mesmo vídeo) e **aproximada** (≥ 70% das palavras na ordem, dentro de uma janela de 2× o tamanho da frase; só para frases de 2+ palavras). Máximo de 2 resultados por vídeo e 50 no total. O ranking é simples: exatas, depois mais palavras casadas, depois trecho mais compacto; em empate, legenda manual antes da automática.
-- Na busca aproximada, palavras muito comuns geram muitos candidatos; há um teto de 20.000 linhas por busca.
+- Na busca aproximada, palavras muito comuns geram muitos candidatos; há um teto de 20.000 linhas por busca. Quando as palavras são muito comuns, o corte favorece os vídeos indexados primeiro.
 - Acento não é removido (`cafe` ≠ `café`) e `dont` não casa com `don't`.
 - Números aparecem como dígitos na legenda mas são falados por extenso.
 - A barra da palavra falada é **estimada**: o relógio segue o vídeo, mas o tempo de cada palavra é proporcional ao número de letras dentro da fala, então deriva quando há pausa no meio ou quando a legenda aparece antes da voz. Na legenda automática o fim da fala é cortado no início da seguinte. Marcações como `(Laughter)` também recebem a barra. Com a aba em segundo plano a barra não é desenhada (o loop do trecho continua).

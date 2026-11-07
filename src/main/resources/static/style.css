@@ -160,7 +160,6 @@ body[data-estado="resultados"] .estudio { display: grid; }
 body[data-estado="buscando"] .status,
 body[data-estado="vazio"] .status,
 body[data-estado="erro"] .status { display: block; }
-body.ocupado .estudio { opacity: .55; pointer-events: none; transition: opacity .15s; }
 
 /* início: o topo vira hero centrado */
 body[data-estado="inicio"] .topo {

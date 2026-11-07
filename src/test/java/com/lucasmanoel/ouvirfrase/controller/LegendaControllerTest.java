@@ -8,8 +8,10 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.net.URI;
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -42,5 +44,29 @@ class LegendaControllerTest {
         mockMvc.perform(get("/api/videos/a b/legenda"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.erro").value("requisicao_invalida"));
+    }
+
+    @Test
+    void deveDevolverListaVaziaSemCacheParaVideoDesconhecido() throws Exception {
+        when(legendaService.legendaDoVideo("naoexiste1")).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/videos/naoexiste1/legenda"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$").isEmpty());
+    }
+
+    @Test
+    void deveRejeitarIdComMaisDe20Caracteres() throws Exception {
+        mockMvc.perform(get("/api/videos/" + "a".repeat(21) + "/legenda"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.erro").value("requisicao_invalida"));
+    }
+
+    @Test
+    void deveRejeitarIdComBarraCodificada() throws Exception {
+        // 400 ou 404, conforme o Spring resolver o caminho; nunca 200 nem 500
+        mockMvc.perform(get(URI.create("/api/videos/abc%2Fdef/legenda")))
+                .andExpect(result -> assertThat(result.getResponse().getStatus()).isIn(400, 404));
     }
 }

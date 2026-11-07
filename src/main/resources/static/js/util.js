@@ -24,6 +24,11 @@ export function gravarPreferencia(chave, valor) {
   try { localStorage.setItem(chave, valor); } catch (e) { /* ignora */ }
 }
 
+/** Milissegundos que faltam para completar `minimo` desde `inicio` (0 se já passou). */
+export function faltaEsperar(inicio, agora, minimo) {
+  return Math.max(0, minimo - (agora - inicio));
+}
+
 /** Até `n` itens da lista a partir de `inicio` (módulo o tamanho), dando a volta no fim e sem repetir item. */
 export function fatiaCircular(lista, inicio, n) {
   if (lista.length === 0) return [];

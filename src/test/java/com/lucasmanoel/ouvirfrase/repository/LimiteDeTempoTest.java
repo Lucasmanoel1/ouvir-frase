@@ -41,9 +41,9 @@ class LimiteDeTempoTest {
     }
 
     @Test
-    void deveDeixarDeLimitarQuandoOValorEZero() {
+    void deveVoltarAoLimiteDeAntesAoRestaurar() {
         buscaRepository.limitarTempo(150);
-        buscaRepository.limitarTempo(0);
+        buscaRepository.restaurarTempo();
 
         em.createNativeQuery("SELECT pg_sleep(0.4)").getSingleResult(); // não lança
     }

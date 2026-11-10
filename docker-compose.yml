@@ -1,3 +1,4 @@
+# Os dados ficam no volume nomeado "dados" (ouvirfrase_dados): `docker compose down` mantem o indice; `down -v` apaga.
 services:
   db:
     image: postgres:16
@@ -7,8 +8,13 @@ services:
       POSTGRES_PASSWORD: "1234"
     ports:
       - "127.0.0.1:5433:5432"
+    volumes:
+      - dados:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d ouvirfrase"]
       interval: 10s
       timeout: 5s
       retries: 5
+
+volumes:
+  dados:

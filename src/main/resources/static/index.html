@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>OuvirFrase — ouça como a frase é falada de verdade</title>
+  <meta name="description" content="Busque uma palavra ou expressão e veja trechos reais de vídeos do YouTube em que ela é falada. Ouça, repita e compare sua pronúncia.">
+  <meta name="theme-color" content="#EEEBE3">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="fonts.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body data-estado="inicio">
+  <header class="topo">
+    <a class="marca" href="./" aria-label="OuvirFrase, página inicial">
+      <svg class="logo" aria-hidden="true"><use href="icons.svg#logo"/></svg>
+      <span class="marca-nome">Ouvir<b>Frase</b></span>
+    </a>
+
+    <h1 class="slogan">Ouça como a frase é falada de verdade.</h1>
+
+    <form id="form-busca" class="busca" role="search" autocomplete="off">
+      <input id="frase" type="text" placeholder="Digite uma palavra ou frase" aria-label="Palavra ou frase" maxlength="200" required autofocus>
+      <button type="submit" class="btn primario" aria-label="Buscar">
+        <svg class="ic" aria-hidden="true"><use href="icons.svg#i-magnifying-glass"/></svg>
+        <span class="rotulo-busca">Buscar</span>
+      </button>
+    </form>
+
+    <label id="pilula-idioma" class="idioma" data-unico title="Idioma da busca">
+      <svg class="ic" aria-hidden="true"><use href="icons.svg#i-globe"/></svg>
+      <select id="idioma" aria-label="Idioma da busca" disabled><option value="en">Inglês</option></select>
+      <svg class="ic caret" aria-hidden="true"><use href="icons.svg#i-caret-down"/></svg>
+    </label>
+  </header>
+
+  <main>
+    <div id="status" class="status card" role="status" aria-live="polite"></div>
+
+    <section id="inicio" class="inicio">
+      <div id="exemplos" class="chips" hidden></div>
+      <div id="historico" class="chips" hidden></div>
+
+      <ol class="passos">
+        <li class="card">
+          <span class="passo-icone"><svg class="ic" aria-hidden="true"><use href="icons.svg#i-magnifying-glass"/></svg></span>
+          <div><h2>Busque</h2><p>Digite uma palavra ou expressão.</p></div>
+        </li>
+        <li class="card">
+          <span class="passo-icone"><svg class="ic" aria-hidden="true"><use href="icons.svg#i-headphones"/></svg></span>
+          <div><h2>Ouça</h2><p>Veja trechos de vídeos em que ela é falada de verdade.</p></div>
+        </li>
+        <li class="card">
+          <span class="passo-icone"><svg class="ic" aria-hidden="true"><use href="icons.svg#i-microphone"/></svg></span>
+          <div><h2>Repita</h2><p>Fale no microfone e compare, palavra por palavra.</p></div>
+        </li>
+      </ol>
+      <p class="promessa">Sem anúncios. Sem cadastro.</p>
+    </section>
+
+    <section class="estudio">
+      <div class="palco">
+        <div class="moldura"><div id="player"></div></div>
+        <div class="trecho-barra" aria-hidden="true"><div id="progresso"></div></div>
+
+        <div class="dock" role="toolbar" aria-label="Controles do player">
+          <button id="recuar" type="button" class="btn" aria-label="Voltar 2 segundos" title="Voltar 2 segundos">
+            <svg class="ic" aria-hidden="true"><use href="icons.svg#i-rewind"/></svg><span class="mini">2s</span>
+          </button>
+          <button id="tocar" type="button" class="btn ic-btn" aria-label="Pausar" title="Pausar">
+            <svg class="ic" aria-hidden="true"><use id="ic-tocar" href="icons.svg#i-pause"/></svg>
+          </button>
+          <button id="avancar" type="button" class="btn" aria-label="Avançar 2 segundos" title="Avançar 2 segundos">
+            <svg class="ic" aria-hidden="true"><use href="icons.svg#i-fast-forward"/></svg><span class="mini">2s</span>
+          </button>
+          <button id="loop" type="button" class="btn ic-btn" aria-pressed="false" aria-label="Repetir o trecho em loop" title="Repetir o trecho em loop">
+            <svg class="ic" aria-hidden="true"><use id="ic-loop" href="icons.svg#i-repeat"/></svg>
+          </button>
+          <div class="vel">
+            <button id="vel-botao" type="button" class="btn" aria-haspopup="true" aria-expanded="false" aria-label="Velocidade de reprodução" title="Velocidade de reprodução">
+              <svg class="ic" aria-hidden="true"><use href="icons.svg#i-gauge"/></svg><span id="vel-texto">1×</span>
+            </button>
+            <div id="velocidades" class="popover card" role="menu" hidden></div>
+          </div>
+          <span class="dock-espaco"></span>
+          <button id="mic" type="button" class="btn primario" aria-label="Falar no microfone">
+            <svg class="ic" aria-hidden="true"><use id="ic-mic" href="icons.svg#i-microphone"/></svg><span id="mic-texto">Falar</span>
+          </button>
+        </div>
+
+        <figure class="legenda-card card">
+          <p id="selo" class="selo" hidden></p>
+          <p id="selo-auto" class="selo" title="Legenda gerada por reconhecimento de voz: pode ter erros" hidden>Legenda automática</p>
+          <p id="aviso-video" class="selo" role="status" hidden></p>
+          <blockquote id="legenda" dir="auto"></blockquote>
+          <p id="traducao" lang="pt" hidden></p>
+          <figcaption class="legenda-rodape">
+            <button id="traducao-botao" type="button" class="btn ic-btn mini-btn" aria-pressed="true" aria-label="Mostrar a tradução" title="Mostrar a tradução" hidden>
+              <svg class="ic" aria-hidden="true"><use href="icons.svg#i-translate"/></svg><span id="traducao-rotulo" hidden>Ativar tradução</span>
+            </button>
+          </figcaption>
+        </figure>
+      </div>
+
+      <div class="lateral">
+        <section class="pratica card" aria-label="Prática de pronúncia">
+          <div class="pratica-topo">
+            <div class="seg" role="group" aria-label="O que repetir">
+              <button id="alvo-frase" type="button" aria-pressed="true">Frase</button>
+              <button id="alvo-trecho" type="button" aria-pressed="false">Trecho</button>
+            </div>
+            <p id="mic-status" role="status"></p>
+          </div>
+          <p id="pratica-alvo" class="pratica-alvo" hidden>
+            <span id="alvo-original" dir="auto"></span>
+            <span id="alvo-latino" class="alvo-latino"></span>
+          </p>
+          <div id="mic-resultado" hidden>
+            <p class="nota-linha"><span id="mic-nota"></span><span id="mic-palavras" dir="auto"></span></p>
+            <p id="mic-ouvido" dir="auto"></p>
+          </div>
+          <p class="pratica-aviso">O áudio é processado pelo serviço de voz do navegador. <a href="privacidade.html">Saiba mais</a></p>
+        </section>
+
+        <aside class="lista card" aria-label="Ocorrências encontradas">
+          <div class="lista-topo">
+            <p class="lista-titulo"><svg class="ic" aria-hidden="true"><use href="icons.svg#i-waveform"/></svg><span id="contador"></span></p>
+            <div class="lista-acoes">
+              <button id="anterior" type="button" class="btn ic-btn pequeno" aria-label="Ocorrência anterior" title="Anterior">
+                <svg class="ic" aria-hidden="true"><use href="icons.svg#i-caret-left"/></svg>
+              </button>
+              <button id="proximo" type="button" class="btn ic-btn pequeno" aria-label="Próxima ocorrência" title="Próxima">
+                <svg class="ic" aria-hidden="true"><use href="icons.svg#i-caret-right"/></svg>
+              </button>
+              <button id="copiar" type="button" class="btn ic-btn pequeno" aria-label="Copiar link desta busca" title="Copiar link">
+                <svg class="ic" aria-hidden="true"><use id="ic-copiar" href="icons.svg#i-link"/></svg>
+              </button>
+            </div>
+          </div>
+          <ol id="ocorrencias" class="itens"></ol>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <footer class="rodape"><a href="privacidade.html">Privacidade</a></footer>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

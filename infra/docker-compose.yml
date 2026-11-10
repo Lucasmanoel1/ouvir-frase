@@ -1,0 +1,52 @@
+# Compose de producao. Na VPS, esta pasta (infra/) fica em /opt/ouvirfrase, ao lado do .env
+# (copie o .env.exemplo). Passo a passo completo: docs/operacao.md.
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ouvirfrase
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_SENHA:?defina POSTGRES_SENHA no .env}
+    # Ponto de partida para 4 GB de RAM e 1 vCPU com NVMe; ajuste olhando o uso real.
+    command: ["postgres", "-c", "shared_buffers=1GB", "-c", "effective_cache_size=2GB", "-c", "work_mem=16MB",
+              "-c", "random_page_cost=1.1", "-c", "max_connections=20", "-c", "max_parallel_workers_per_gather=0"]
+    volumes:
+      - dados:/var/lib/postgresql/data
+      - ./sql:/sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ouvirfrase"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    logging:
+      driver: local
+      options:
+        max-size: 20m
+        max-file: "5"
+    # Sem "ports": so o app fala com o banco, pela rede do Compose. Porta publicada pelo Docker
+    # passa por fora do ufw.
+
+  app:
+    image: ghcr.io/lucasmanoel1/ouvir-frase:${VERSAO:?defina VERSAO no .env}
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      OUVIRFRASE_DB_SENHA: ${OUVIRFRASE_DB_SENHA:?defina OUVIRFRASE_DB_SENHA no .env}
+      # O padrao da JVM em contêiner e usar 25% do limite de memoria.
+      JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=75
+    # So em 127.0.0.1: quem atende a internet e o Nginx.
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    mem_limit: 768m
+    restart: unless-stopped
+    logging:
+      driver: local
+      options:
+        max-size: 20m
+        max-file: "5"
+
+volumes:
+  dados:

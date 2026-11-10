@@ -1,0 +1,2 @@
+ALTER TABLE trecho ADD COLUMN traducao VARCHAR(1000);
+ALTER TABLE video ADD COLUMN traducao_idioma VARCHAR(10);

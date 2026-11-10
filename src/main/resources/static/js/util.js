@@ -29,6 +29,14 @@ export function faltaEsperar(inicio, agora, minimo) {
   return Math.max(0, minimo - (agora - inicio));
 }
 
+/** Índice do próximo item a partir de `indice`, andando `delta` (+1/-1), que `pula(i)` não descarta; -1 se não houver. */
+export function proximoIndice(total, indice, delta, pula) {
+  for (let i = indice + delta; i >= 0 && i < total; i += delta) {
+    if (!pula(i)) return i;
+  }
+  return -1;
+}
+
 /** Até `n` itens da lista a partir de `inicio` (módulo o tamanho), dando a volta no fim e sem repetir item. */
 export function fatiaCircular(lista, inicio, n) {
   if (lista.length === 0) return [];

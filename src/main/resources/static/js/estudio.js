@@ -1,15 +1,35 @@
 // O estúdio: lista de ocorrências, trecho em exibição e navegação entre resultados.
-import { $ } from './util.js';
+import { $, proximoIndice } from './util.js';
 import { busca } from './estado.js';
 import { renderLegenda } from './destaque.js';
-import { tocar } from './player.js';
+import { tocar, pausar, videoIndisponivel } from './player.js';
 import { janelaDoTrecho } from './janela.js';
 import { carregarLegenda } from './legenda.js';
 import * as Ferramentas from './ferramentas.js';
 import * as Pronuncia from './pronuncia.js';
 
 const selo = $('selo'), seloAuto = $('selo-auto'), legenda = $('legenda'), contador = $('contador');
-const lista = $('ocorrencias'), btnAnterior = $('anterior'), btnProximo = $('proximo');
+const lista = $('ocorrencias'), btnAnterior = $('anterior'), btnProximo = $('proximo'), aviso = $('aviso-video');
+
+const MSG_INDISPONIVEL = 'Este vídeo não está mais disponível. Fui para o próximo.';
+const MSG_NENHUM = 'Nenhum vídeo desta busca está disponível agora.';
+const MSG_PLAYER = 'Não consegui carregar o player do YouTube. Confira bloqueadores de conteúdo.';
+
+let playerBloqueado = false;
+
+// O YouTube recusou o vídeo (removido, privado, incorporação bloqueada): o item fica marcado e a navegação o pula.
+const pula = (i) => busca.indisponiveis.has(busca.resultados[i].youtubeId);
+
+function avisar(texto) {
+  aviso.textContent = texto;
+  aviso.hidden = !texto;
+}
+
+function atualizarSetas() {
+  const { resultados, indice } = busca;
+  btnAnterior.disabled = proximoIndice(resultados.length, indice, -1, pula) === -1;
+  btnProximo.disabled = proximoIndice(resultados.length, indice, 1, pula) === -1;
+}
 
 export function montarLista() {
   lista.textContent = '';
@@ -44,13 +64,14 @@ export function montarLista() {
       aprox.textContent = Math.round((r.pontuacao || 0) * 100) + '%';
       botao.append(aprox);
     }
-    botao.addEventListener('click', () => { busca.indice = i; mostrar(); });
+    botao.addEventListener('click', () => { if (pula(i)) return; busca.indice = i; mostrar(); });
     li.append(botao);
     lista.append(li);
   });
 }
 
-export function mostrar() {
+/** Mostra o resultado atual. `textoAviso` é a mensagem que explica por que o resultado mudou (vídeo indisponível). */
+export function mostrar(textoAviso = '') {
   const { resultados, indice } = busca;
   const r = resultados[indice];
   const janela = janelaDoTrecho(r, Pronuncia.alvoAtual());
@@ -64,8 +85,8 @@ export function mostrar() {
   renderLegenda(legenda, r.legenda || '', busca.frase);
   carregarLegenda(r);
   contador.textContent = (indice + 1) + ' de ' + resultados.length;
-  btnAnterior.disabled = indice === 0;
-  btnProximo.disabled = indice === resultados.length - 1;
+  atualizarSetas();
+  avisar(textoAviso || (playerBloqueado ? MSG_PLAYER : ''));
 
   lista.querySelectorAll('.item').forEach((el, i) => {
     if (i === indice) {
@@ -85,8 +106,39 @@ export function alvoMudou() {
 }
 
 export function navegar(delta) {
-  const novo = busca.indice + delta;
-  if (novo < 0 || novo >= busca.resultados.length) return;
+  const novo = proximoIndice(busca.resultados.length, busca.indice, delta, pula);
+  if (novo === -1) return;
   busca.indice = novo;
   mostrar();
+}
+
+/** O player recusou o vídeo. Só os códigos de vídeo indisponível pulam; nos outros o YouTube mostra o próprio erro. */
+export function videoFalhou(codigo, youtubeId) {
+  if (!videoIndisponivel(codigo) || !youtubeId) return;
+  busca.indisponiveis.add(youtubeId);
+  lista.querySelectorAll('.item').forEach((el, i) => {
+    if (busca.resultados[i].youtubeId !== youtubeId) return;
+    el.dataset.indisponivel = '';
+    el.setAttribute('aria-disabled', 'true');
+  });
+  const atual = busca.resultados[busca.indice];
+  if (!atual || atual.youtubeId !== youtubeId) { atualizarSetas(); return; } // pedido antigo: só marca
+
+  const total = busca.resultados.length;
+  let novo = proximoIndice(total, busca.indice, 1, pula);
+  if (novo === -1) novo = proximoIndice(total, busca.indice, -1, pula);
+  if (novo === -1) {
+    pausar();
+    atualizarSetas();
+    avisar(MSG_NENHUM);
+    return;
+  }
+  busca.indice = novo;
+  mostrar(MSG_INDISPONIVEL);
+}
+
+/** O script da API do YouTube não carregou (bloqueador de conteúdo, rede). O aviso aparece junto do resultado. */
+export function playerFalhou() {
+  playerBloqueado = true;
+  if (document.body.dataset.estado === 'resultados') avisar(MSG_PLAYER);
 }

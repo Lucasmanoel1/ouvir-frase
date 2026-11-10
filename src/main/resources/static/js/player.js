@@ -1,13 +1,22 @@
 // Player do YouTube (IFrame Player API). Um caminho só para tocar: loadVideoById, que aceita segundos fracionários.
 
-let player = null, apiPronta = false, playerPronto = false, pedido = null, aoMudarEstado = () => {};
+let player = null, apiPronta = false, playerPronto = false, pedido = null, aoMudarEstado = () => {}, aoErroDoPlayer = () => {};
 
 // Antes do onReady os métodos do player não existem.
 export const getPlayer = () => (playerPronto ? player : null);
 
-/** Carrega a API do YouTube. O callback global é definido antes de injetar o script, sem corrida. */
-export function iniciarPlayer(aoMudar) {
+// Códigos do onError da IFrame API: 100 (removido ou privado), 101 e 150 (incorporação bloqueada).
+// Ficam de fora 2 (pedido inválido), 5 (erro do HTML5) e 153 (sem Referer): o YouTube já mostra o erro e não é culpa do vídeo.
+export const VIDEO_INDISPONIVEL = new Set([100, 101, 150]);
+export const videoIndisponivel = (codigo) => VIDEO_INDISPONIVEL.has(codigo);
+
+/**
+ * Carrega a API do YouTube. O callback global é definido antes de injetar o script, sem corrida.
+ * aoErro(codigo, youtubeId): o player recusou o vídeo do pedido corrente. aoFalharApi(): o script não carregou (bloqueador, rede).
+ */
+export function iniciarPlayer(aoMudar, aoErro, aoFalharApi) {
   aoMudarEstado = aoMudar;
+  aoErroDoPlayer = aoErro;
   window.onYouTubeIframeAPIReady = () => {
     apiPronta = true;
     if (pedido) criarPlayer();
@@ -15,6 +24,7 @@ export function iniciarPlayer(aoMudar) {
   const script = document.createElement('script');
   script.src = 'https://www.youtube.com/iframe_api';
   script.async = true;
+  script.onerror = aoFalharApi;
   document.head.append(script);
 }
 
@@ -32,6 +42,7 @@ function criarPlayer() {
     events: {
       onReady: () => { playerPronto = true; player.loadVideoById(pedido); },
       onStateChange: (e) => aoMudarEstado(e.data),
+      onError: (e) => aoErroDoPlayer(e.data, pedido && pedido.videoId),
     },
   });
 }

@@ -14,6 +14,11 @@ updates:
     target-branch: develop
     schedule:
       interval: weekly
+    # O CI testa no Java 21 e o pom compila para 21: trocar a versao do Java
+    # (21 -> 25, 26) e decisao manual, junto com o java-version do ci.yml.
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /

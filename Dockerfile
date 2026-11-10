@@ -1,5 +1,5 @@
 # --- build ---
-FROM maven:3.9-eclipse-temurin-26 AS build
+FROM maven:3.9-eclipse-temurin-21 AS build
 WORKDIR /app
 COPY pom.xml .
 RUN mvn -B -q dependency:go-offline
@@ -7,7 +7,7 @@ COPY src ./src
 RUN mvn -B -q -DskipTests package
 
 # --- runtime ---
-FROM eclipse-temurin:25-jre
+FROM eclipse-temurin:21-jre
 LABEL org.opencontainers.image.source="https://github.com/Lucasmanoel1/ouvir-frase"
 WORKDIR /app
 RUN useradd --system --no-create-home app

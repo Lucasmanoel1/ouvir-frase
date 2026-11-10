@@ -25,13 +25,19 @@ public class BuscaRepository {
     private final EntityManager em;
 
     /**
-     * Limita, em milissegundos, cada consulta do restante desta transação (statement_timeout; 0 desliga). Vale só
-     * até o fim da transação. O valor vai como parâmetro de set_config, nunca no texto do SQL.
+     * Limita, em milissegundos, cada consulta do restante desta transação (statement_timeout). Vale só até o fim
+     * da transação. O valor vai como parâmetro de set_config, nunca no texto do SQL. Use um valor maior que zero:
+     * 0 desligaria o limite, inclusive o que o papel do banco já tem em produção.
      */
     public void limitarTempo(long ms) {
         em.createNativeQuery("SELECT set_config('statement_timeout', ?1, true)")
                 .setParameter(1, Long.toString(ms))
                 .getSingleResult();
+    }
+
+    /** Volta ao statement_timeout de antes de limitarTempo (o do papel ou do banco), para o resto da transação. */
+    public void restaurarTempo() {
+        em.createNativeQuery("SET LOCAL statement_timeout TO DEFAULT").executeUpdate();
     }
 
     public record Acerto(String youtubeId, String titulo, double inicioSeg, double ultimaPalavraSeg,

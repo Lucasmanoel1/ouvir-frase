@@ -7,7 +7,7 @@ import { aoTempo, retraduzirFalaAtual } from './legenda.js';
 import { iniciarTraducao, prepararTraducao } from './traducao.js';
 import { iniciarHistorico, guardarHistorico, renderChips } from './historico.js';
 import { iniciarIdiomas, aplicarIdiomaDetectado, limparSinal } from './idiomas.js';
-import { montarLista, mostrar, navegar, alvoMudou } from './estudio.js';
+import { montarLista, mostrar, navegar, alvoMudou, videoFalhou, playerFalhou } from './estudio.js';
 import { mostrarStatus } from './status.js';
 import * as Ferramentas from './ferramentas.js';
 import * as Pronuncia from './pronuncia.js';
@@ -40,7 +40,7 @@ async function buscar(texto) {
   } catch (e) {
     Ferramentas.trechoMudou(null);
     tela('erro');
-    mostrarStatus('erro', 'Algo deu errado', e instanceof TypeError ? ERRO_PADRAO : e.message);
+    mostrarStatus('erro', 'Algo deu errado', (e instanceof TypeError || e.name === 'TimeoutError') ? ERRO_PADRAO : e.message);
     return;
   }
   if (resultados.length === 0) {
@@ -49,6 +49,7 @@ async function buscar(texto) {
   }
 
   busca.resultados = resultados;
+  busca.indisponiveis.clear();
   busca.fraseTransliterada = fraseTransliterada;
   if (resultados.length === 0) {
     Ferramentas.trechoMudou(null);
@@ -109,7 +110,7 @@ idiomaSel.addEventListener('change', () => {
   if (campo.value.trim()) buscar(campo.value);
 });
 
-iniciarPlayer((estado) => Ferramentas.aoMudarEstado(estado));
+iniciarPlayer((estado) => Ferramentas.aoMudarEstado(estado), videoFalhou, playerFalhou);
 iniciarTraducao(retraduzirFalaAtual);
 iniciarHistorico(buscar);
 Ferramentas.iniciar({ getPlayer, estudoAberto: () => document.body.dataset.estado === 'resultados', aoTempo });

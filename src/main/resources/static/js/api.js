@@ -2,9 +2,13 @@
 
 export const ERRO_PADRAO = 'Não consegui buscar agora. Tente de novo em instantes.';
 
-/** Resultados da busca. Falha de rede lança TypeError; erro do servidor lança Error com a mensagem dele. */
+// A busca nunca fica girando para sempre: passou disso, vira erro de rede.
+const TEMPO_MAX_MS = 15000;
+
+/** Resultados da busca. Falha de rede lança TypeError e tempo esgotado lança TimeoutError; erro do servidor lança Error com a mensagem dele. */
 export async function buscarFrases(frase, idioma) {
-  const resp = await fetch('/api/busca?frase=' + encodeURIComponent(frase) + '&idioma=' + encodeURIComponent(idioma));
+  const resp = await fetch('/api/busca?frase=' + encodeURIComponent(frase) + '&idioma=' + encodeURIComponent(idioma),
+    { signal: AbortSignal.timeout(TEMPO_MAX_MS) });
   if (!resp.ok) {
     const corpo = await resp.json().catch(() => ({}));
     throw new Error(corpo.mensagem || ERRO_PADRAO);

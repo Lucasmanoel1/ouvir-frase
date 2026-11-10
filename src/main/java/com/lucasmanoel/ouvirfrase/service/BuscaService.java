@@ -213,7 +213,7 @@ public class BuscaService {
         buscaRepository.limitarTempo(prazo.restanteMs());
         try {
             List<T> resultado = consulta.get();
-            buscaRepository.limitarTempo(0); // as consultas curtas que vêm depois não ficam com o resto do prazo
+            buscaRepository.restaurarTempo(); // as consultas curtas que vêm depois não ficam com o resto do prazo
             return resultado;
         } catch (QueryTimeoutException e) {
             log.warn("Busca passou do orçamento de {} ms; devolvendo o que já foi achado", propriedades.orcamento().toMillis());

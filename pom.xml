@@ -101,13 +101,13 @@
 		<dependency>
 			<groupId>org.projectlombok</groupId>
 			<artifactId>lombok</artifactId>
-			<version>1.18.46</version>
+			<version>1.18.48</version>
 			<optional>true</optional>
 		</dependency>
 		<dependency>
 			<groupId>org.apache.commons</groupId>
 			<artifactId>commons-csv</artifactId>
-			<version>1.14.0</version>
+			<version>1.14.1</version>
 		</dependency>
 		<dependency>
 			<groupId>com.ibm.icu</groupId>
@@ -138,7 +138,7 @@
 						<path>
 							<groupId>org.projectlombok</groupId>
 							<artifactId>lombok</artifactId>
-							<version>1.18.46</version>
+							<version>1.18.48</version>
 						</path>
 					</annotationProcessorPaths>
 				</configuration>

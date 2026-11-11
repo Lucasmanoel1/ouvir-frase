@@ -221,6 +221,10 @@ As funções puras do front (`palavras.js`, `comparacao.js`) têm testes com o `
 node --test "src/test/js/*.test.mjs"
 ```
 
+## Produção
+
+O site roda numa VPS Linux: Nginx com HTTPS na frente, o app e o PostgreSQL em contêineres (`infra/docker-compose.yml`) e a imagem publicada no GitHub Container Registry a cada tag `v*`. Em produção o app só lê o banco (papel `ouvirfrase_app`, com limite de 3 s por consulta) e o índice chega como um dump gerado no computador de quem faz a ingestão. O passo a passo, do servidor vazio ao HTTPS, mais publicar uma versão, voltar atrás, atualizar o índice e ler os logs, está em [`docs/operacao.md`](docs/operacao.md).
+
 ## Estrutura
 
 ```
@@ -239,7 +243,8 @@ src/main/resources/
   static/                      # front (HTML/CSS e JS em módulos ES, sem build; fonts/, icons.svg)
     js/                        #   app (orquestra), api, estudio, legenda, traducao, historico, idiomas, player, ferramentas, pronuncia...
 data/<idioma>/<canal>.csv      # listas de vídeos da ingestão
-docs/                          # identidade visual e roteiro de vídeo
+infra/                         # produção: compose, Nginx, SQL do papel somente leitura e scripts do índice
+docs/                          # identidade visual, roteiro de vídeo e roteiro de operação (operacao.md)
 ```
 
 ---

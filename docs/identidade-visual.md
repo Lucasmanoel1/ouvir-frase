@@ -1,10 +1,10 @@
-# OuvirFrase: identidade visual e de voz
+# Idiomando: identidade visual e de voz
 
 Este documento é a fonte da verdade para o visual do site e para qualquer vídeo, anúncio ou tutorial. Se uma decisão nova não couber aqui, o documento é atualizado antes.
 
 ## Essência
 
-O OuvirFrase é uma professora amiga: calma, direta, sem enrolação e sem barulho. Nada de anúncio, cadastro ou tela lotada. O vídeo é o centro, e tudo o que você precisa para praticar está na mesma tela.
+O Idiomando é uma professora amiga: calma, direta, sem enrolação e sem barulho. Nada de anúncio, cadastro ou tela lotada. O vídeo é o centro, e tudo o que você precisa para praticar está na mesma tela.
 
 O ritmo da marca são três tempos: **Busque. Ouça. Repita.** Ele aparece na tela inicial, nos vídeos e em qualquer texto de apresentação.
 
@@ -52,7 +52,7 @@ Somente [Phosphor Icons](https://phosphoricons.com), peso **bold**, e **fill** p
 
 ## Logo
 
-Balão de fala laranja com contorno grosso e três barras (uma onda sonora) dentro. Nome em Lora bold: "Ouvir" em tinta, "Frase" em `--laranja-forte`. Sempre sobre `--papel` ou `--papel-2`. Arquivos: `static/favicon.svg` e o símbolo `logo` do sprite.
+Balão de fala laranja com contorno grosso e três barras (uma onda sonora) dentro. Nome em Lora bold: "idiom" em tinta, "ando" em `--laranja-forte` (minúsculas: "Ando" com A maiúsculo lê como nome próprio). Sempre sobre `--papel` ou `--papel-2`. Arquivos: `static/favicon.svg` e o símbolo `logo` do sprite.
 
 ## Voz e textos (pt-BR)
 

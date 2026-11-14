@@ -1,0 +1,176 @@
+package com.lucasmanoel.idiomando.ingestao;
+
+import com.lucasmanoel.idiomando.ingestao.catalogo.CatalogoDeVideos;
+import com.lucasmanoel.idiomando.ingestao.catalogo.ListaDeVideos;
+import com.lucasmanoel.idiomando.ingestao.catalogo.VideoSemente;
+import com.lucasmanoel.idiomando.ingestao.indexacao.IndexadorDeVideo;
+import com.lucasmanoel.idiomando.ingestao.legenda.FalhaNaBuscaDeLegendaException;
+import com.lucasmanoel.idiomando.ingestao.legenda.LegendaBaixada;
+import com.lucasmanoel.idiomando.ingestao.legenda.LegendaProvider;
+import com.lucasmanoel.idiomando.ingestao.legenda.TrechoLegenda;
+import com.lucasmanoel.idiomando.model.VideoDescartado;
+import com.lucasmanoel.idiomando.repository.VideoDescartadoRepository;
+import com.lucasmanoel.idiomando.repository.VideoRepository;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
+import static org.assertj.core.api.Assertions.tuple;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(MockitoExtension.class)
+class IngestaoServiceTest {
+
+    private static final Path DADOS = Path.of("data");
+    private static final VideoSemente A = new VideoSemente("AAAAAAAAAAA", "en", "A");
+    private static final VideoSemente B = new VideoSemente("BBBBBBBBBBB", "en", "B");
+    private static final VideoSemente C = new VideoSemente("CCCCCCCCCCC", "en", "C");
+    private static final VideoSemente D = new VideoSemente("DDDDDDDDDDD", "en", "D");
+
+    @Mock private CatalogoDeVideos catalogo;
+    @Mock private FiltroEmbeddable filtro;
+    @Mock private LegendaProvider legendaProvider;
+    @Mock private IndexadorDeVideo indexador;
+    @Mock private VideoRepository videoRepository;
+    @Mock private VideoDescartadoRepository descartadoRepository;
+
+    private IngestaoService service;
+
+    @BeforeEach
+    void preparar() {
+        service = new IngestaoService(catalogo, filtro, legendaProvider, indexador, videoRepository, descartadoRepository,
+                new IngestaoProperties(DADOS, 0, 0));
+    }
+
+    @Test
+    void deveIndexarPularJaIndexadosEDescartarComMotivo() {
+        List<TrechoLegenda> trechos = List.of(new TrechoLegenda("hello world", 1.0, 2.0));
+        when(catalogo.carregar(DADOS)).thenReturn(List.of(A, B, C, D));
+        when(videoRepository.existsByYoutubeId(A.youtubeId())).thenReturn(true);
+        when(filtro.filtrar(List.of(B, C, D)))
+                .thenReturn(new ResultadoFiltro(List.of(B, C), Map.of(D, MotivoDescarte.NAO_INCORPORAVEL)));
+        when(legendaProvider.buscar(B.youtubeId(), "en")).thenReturn(Optional.of(new LegendaBaixada(trechos, true)));
+        when(legendaProvider.buscar(C.youtubeId(), "en")).thenReturn(Optional.empty());
+        when(indexador.indexar(B.youtubeId(), "B", "en", null, trechos, true)).thenReturn(2);
+
+        RelatorioIngestao relatorio = service.executar();
+
+        assertThat(relatorio.total()).isEqualTo(4);
+        assertThat(relatorio.indexados()).isEqualTo(1);
+        assertThat(relatorio.jaIndexados()).isEqualTo(1);
+        assertThat(relatorio.descartados())
+                .containsEntry(C, MotivoDescarte.SEM_LEGENDA)
+                .containsEntry(D, MotivoDescarte.NAO_INCORPORAVEL)
+                .hasSize(2);
+        verify(indexador).indexar(B.youtubeId(), "B", "en", null, trechos, true);
+
+        ArgumentCaptor<VideoDescartado> gravados = ArgumentCaptor.forClass(VideoDescartado.class);
+        verify(descartadoRepository, times(2)).save(gravados.capture());
+        assertThat(gravados.getAllValues())
+                .extracting(VideoDescartado::getYoutubeId, VideoDescartado::getMotivo)
+                .containsExactlyInAnyOrder(tuple(C.youtubeId(), "SEM_LEGENDA"), tuple(D.youtubeId(), "NAO_INCORPORAVEL"));
+    }
+
+    @Test
+    void deveIgnorarVideoJaDescartadoSemConsultarFiltroNemLegenda() {
+        when(catalogo.carregar(DADOS)).thenReturn(List.of(C));
+        when(descartadoRepository.existsById(C.youtubeId())).thenReturn(true);
+        when(filtro.filtrar(List.of())).thenReturn(new ResultadoFiltro(List.of(), Map.of()));
+
+        RelatorioIngestao relatorio = service.executar();
+
+        assertThat(relatorio.jaDescartados()).isEqualTo(1);
+        assertThat(relatorio.descartados()).isEmpty();
+        verifyNoInteractions(legendaProvider, indexador);
+        verify(descartadoRepository, never()).save(any());
+    }
+
+    @Test
+    void devePararTudoComRelatorioParcialQuandoHaFalhaDeInfraestrutura() {
+        when(catalogo.carregar(DADOS)).thenReturn(List.of(B, C));
+        when(filtro.filtrar(List.of(B, C))).thenReturn(new ResultadoFiltro(List.of(B, C), Map.of()));
+        when(legendaProvider.buscar(B.youtubeId(), "en"))
+                .thenThrow(new FalhaNaBuscaDeLegendaException("IP bloqueado"));
+
+        assertThatExceptionOfType(IngestaoInterrompidaException.class)
+                .isThrownBy(service::executar)
+                .withCauseInstanceOf(FalhaNaBuscaDeLegendaException.class)
+                .satisfies(e -> assertThat(e.getRelatorioParcial().total()).isEqualTo(2));
+
+        verify(legendaProvider, never()).buscar(C.youtubeId(), "en");
+        verifyNoInteractions(indexador);
+    }
+
+    @Test
+    void deveIndexarSoOCanalPedidoRespeitarOLoteEAvisarOProgresso() {
+        VideoSemente a = new VideoSemente("AAAAAAAAAAA", "en", "A", "ted");
+        VideoSemente b = new VideoSemente("BBBBBBBBBBB", "en", "B", "ted");
+        VideoSemente c = new VideoSemente("CCCCCCCCCCC", "en", "C", "ted");
+        VideoSemente outro = new VideoSemente("DDDDDDDDDDD", "en", "D", "vox");
+        VideoSemente mesmoNomeOutroIdioma = new VideoSemente("EEEEEEEEEEE", "es", "E", "ted");
+        List<TrechoLegenda> trechos = List.of(new TrechoLegenda("hello world", 1.0, 2.0));
+        when(catalogo.carregar(DADOS)).thenReturn(List.of(a, b, c, outro, mesmoNomeOutroIdioma));
+        when(filtro.filtrar(List.of(a, b, c))).thenReturn(new ResultadoFiltro(List.of(a, b, c), Map.of()));
+        when(legendaProvider.buscar(a.youtubeId(), "en")).thenReturn(Optional.of(new LegendaBaixada(trechos, false)));
+        when(legendaProvider.buscar(b.youtubeId(), "en")).thenReturn(Optional.of(new LegendaBaixada(trechos, false)));
+        when(indexador.indexar(anyString(), anyString(), eq("en"), eq("ted"), eq(trechos), eq(false))).thenReturn(1);
+        List<String> avisos = new ArrayList<>();
+
+        RelatorioIngestao relatorio = service.executar(new ListaDeVideos("en", "ted"), 2, avisos::add);
+
+        assertThat(relatorio.total()).isEqualTo(3);
+        assertThat(relatorio.indexados()).isEqualTo(2);
+        assertThat(relatorio.adiados()).isEqualTo(1);
+        assertThat(avisos).containsExactly(
+                "Conferindo 3 vídeos novos no YouTube…", "Indexando 1 de 2: A", "Indexando 2 de 2: B");
+        verify(legendaProvider, never()).buscar(c.youtubeId(), "en");
+        verify(videoRepository, never()).existsByYoutubeId(outro.youtubeId());
+        verify(videoRepository, never()).existsByYoutubeId(mesmoNomeOutroIdioma.youtubeId());
+    }
+
+    @Test
+    void deveResumirAsListasSemChamarOYouTube() {
+        VideoSemente indexado = new VideoSemente("AAAAAAAAAAA", "en", "A", "ted");
+        VideoSemente descartado = new VideoSemente("BBBBBBBBBBB", "en", "B", "ted");
+        VideoSemente pendente = new VideoSemente("CCCCCCCCCCC", "en", "C", "ted");
+        VideoSemente daPlaylist = new VideoSemente("DDDDDDDDDDD", "es", "D", "playlist-abc");
+        when(catalogo.carregar(DADOS)).thenReturn(List.of(indexado, descartado, pendente, daPlaylist));
+        when(videoRepository.existsByYoutubeId(indexado.youtubeId())).thenReturn(true);
+        when(descartadoRepository.existsById(descartado.youtubeId())).thenReturn(true);
+
+        List<ResumoLista> resumos = service.listas();
+
+        assertThat(resumos).containsExactly(
+                new ResumoLista("en", "ted", false, 3, 1, 1, 1),
+                new ResumoLista("es", "playlist-abc", true, 1, 0, 0, 1));
+        verifyNoInteractions(filtro, legendaProvider, indexador);
+    }
+
+    @Test
+    void deveRecusarListaQueNaoExiste() {
+        when(catalogo.carregar(DADOS)).thenReturn(List.of(A));
+
+        assertThatExceptionOfType(IllegalArgumentException.class)
+                .isThrownBy(() -> service.executar(new ListaDeVideos("ru", "nada"), 5, mensagem -> { }))
+                .withMessageContaining("ru/nada");
+        verifyNoInteractions(filtro, legendaProvider, indexador);
+    }
+}

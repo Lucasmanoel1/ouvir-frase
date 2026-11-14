@@ -1,9 +1,9 @@
-# Os dados ficam no volume nomeado "dados" (ouvirfrase_dados): `docker compose down` mantem o indice; `down -v` apaga.
+# Os dados ficam no volume nomeado "dados" (volume ouvirfrase_dados, nome antigo mantido de proposito: o volume guarda o indice e renomear criaria um volume vazio): `docker compose down` mantem o indice; `down -v` apaga.
 services:
   db:
     image: postgres:16
     environment:
-      POSTGRES_DB: ouvirfrase
+      POSTGRES_DB: idiomando
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: "1234"
     ports:
@@ -11,10 +11,11 @@ services:
     volumes:
       - dados:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d ouvirfrase"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d idiomando"]
       interval: 10s
       timeout: 5s
       retries: 5
 
 volumes:
   dados:
+    name: ouvirfrase_dados

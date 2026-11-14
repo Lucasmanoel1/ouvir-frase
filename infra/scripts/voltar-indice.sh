@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Desfaz a ultima atualizacao do indice: troca ouvirfrase <-> ouvirfrase_antigo.
-# Rodar de novo desfaz a volta. Rodar na VPS, em /opt/ouvirfrase.
+# Desfaz a ultima atualizacao do indice: troca idiomando <-> idiomando_antigo.
+# Rodar de novo desfaz a volta. Rodar na VPS, em /opt/idiomando.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -8,18 +8,18 @@ cd "$(dirname "$0")/.."
 dc() { docker compose "$@" </dev/null; }
 psql_pg() { dc exec -T db psql -U postgres -v ON_ERROR_STOP=1 "$@"; }
 
-existe="$(psql_pg -d postgres -tA -c "SELECT 1 FROM pg_database WHERE datname = 'ouvirfrase_antigo'")"
+existe="$(psql_pg -d postgres -tA -c "SELECT 1 FROM pg_database WHERE datname = 'idiomando_antigo'")"
 if [ "$existe" != "1" ]; then
-  echo "Nao existe ouvirfrase_antigo: nao ha para onde voltar." >&2
+  echo "Nao existe idiomando_antigo: nao ha para onde voltar." >&2
   exit 1
 fi
 
 dc stop app
 trap 'echo "A troca falhou. Subindo o app de novo com o banco que estava no ar." >&2; dc start app || true' ERR
 psql_pg -d postgres \
-  -c "ALTER DATABASE ouvirfrase RENAME TO ouvirfrase_tmp" \
-  -c "ALTER DATABASE ouvirfrase_antigo RENAME TO ouvirfrase" \
-  -c "ALTER DATABASE ouvirfrase_tmp RENAME TO ouvirfrase_antigo"
+  -c "ALTER DATABASE idiomando RENAME TO idiomando_tmp" \
+  -c "ALTER DATABASE idiomando_antigo RENAME TO idiomando" \
+  -c "ALTER DATABASE idiomando_tmp RENAME TO idiomando_antigo"
 trap - ERR
 dc start app
 

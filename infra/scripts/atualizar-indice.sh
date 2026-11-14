@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Troca o indice de producao por um dump novo, guardando o anterior em ouvirfrase_antigo
-# (para voltar: ./scripts/voltar-indice.sh). Rodar na VPS, em /opt/ouvirfrase.
-# Uso: ./scripts/atualizar-indice.sh ouvirfrase-AAAA-MM-DD.dump
+# Troca o indice de producao por um dump novo, guardando o anterior em idiomando_antigo
+# (para voltar: ./scripts/voltar-indice.sh). Rodar na VPS, em /opt/idiomando.
+# Uso: ./scripts/atualizar-indice.sh idiomando-AAAA-MM-DD.dump
 set -euo pipefail
 
 DUMP="${1:-}"
@@ -22,22 +22,22 @@ contar() {
 echo "1/6 Copiando o dump para o conteiner..."
 dc cp "$DUMP" db:/tmp/indice.dump
 
-echo "2/6 Criando ouvirfrase_novo..."
-psql_pg -d postgres -c "DROP DATABASE IF EXISTS ouvirfrase_novo" -c "CREATE DATABASE ouvirfrase_novo TEMPLATE template0"
+echo "2/6 Criando idiomando_novo..."
+psql_pg -d postgres -c "DROP DATABASE IF EXISTS idiomando_novo" -c "CREATE DATABASE idiomando_novo TEMPLATE template0"
 
 echo "3/6 Restaurando (pode levar alguns minutos)..."
-dc exec -T db pg_restore -U postgres -d ouvirfrase_novo --no-owner --no-privileges --exit-on-error /tmp/indice.dump
+dc exec -T db pg_restore -U postgres -d idiomando_novo --no-owner --no-privileges --exit-on-error /tmp/indice.dump
 
 echo "4/6 Permissoes do app e ANALYZE..."
-psql_pg -d ouvirfrase_novo -f /sql/permissoes-app.sql
-psql_pg -d ouvirfrase_novo -c "ANALYZE"
+psql_pg -d idiomando_novo -f /sql/permissoes-app.sql
+psql_pg -d idiomando_novo -c "ANALYZE"
 
 echo "5/6 Conferindo:"
-echo "  atual: $(contar ouvirfrase)"
-echo "  novo:  $(contar ouvirfrase_novo)"
+echo "  atual: $(contar idiomando)"
+echo "  novo:  $(contar idiomando_novo)"
 read -r -p "Trocar? (s/N) " resposta
 if [ "$resposta" != "s" ]; then
-  echo "Cancelado. O banco atual continua no ar; ouvirfrase_novo ficou para a proxima rodada."
+  echo "Cancelado. O banco atual continua no ar; idiomando_novo ficou para a proxima rodada."
   dc exec -T db rm -f /tmp/indice.dump
   exit 0
 fi
@@ -46,9 +46,9 @@ echo "6/6 Trocando (o site fica fora do ar por alguns segundos)..."
 dc stop app
 trap 'echo "A troca falhou. Subindo o app de novo com o banco que estava no ar." >&2; dc start app || true' ERR
 psql_pg -d postgres \
-  -c "DROP DATABASE IF EXISTS ouvirfrase_antigo" \
-  -c "ALTER DATABASE ouvirfrase RENAME TO ouvirfrase_antigo" \
-  -c "ALTER DATABASE ouvirfrase_novo RENAME TO ouvirfrase"
+  -c "DROP DATABASE IF EXISTS idiomando_antigo" \
+  -c "ALTER DATABASE idiomando RENAME TO idiomando_antigo" \
+  -c "ALTER DATABASE idiomando_novo RENAME TO idiomando"
 trap - ERR
 dc start app
 

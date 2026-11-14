@@ -1,4 +1,4 @@
-/* OuvirFrase — tema: papel claro, laranja, traço marrom-escuro marcante.
+/* Idiomando — tema: papel claro, laranja, traço marrom-escuro marcante.
    Tokens e regras de identidade em docs/identidade-visual.md */
 
 :root {
@@ -83,7 +83,26 @@ button, select, input { font: inherit; color: inherit; }
 .logo { width: 40px; height: 40px; }
 .marca-nome { font: 700 1.5rem/1 var(--serif); letter-spacing: -.02em; }
 .marca-nome b { color: var(--laranja-forte); font-weight: 700; }
-.slogan { grid-area: slogan; display: none; font: 600 clamp(1.9rem, 4.6vw, 3rem)/1.12 var(--serif); letter-spacing: -.02em; max-width: 18ch; }
+.slogan { grid-area: slogan; display: none; position: relative; max-width: 100%; font: 600 clamp(1.85rem, 5.6vw, 3.25rem)/1.12 var(--serif); letter-spacing: -.02em; }
+.so-leitor { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* título animado da tela inicial (js/titulo.js): as duas frases dividem a mesma célula, então a altura é fixa */
+.titulo-visual { display: grid; justify-items: center; align-items: center; }
+.fr { grid-area: 1 / 1; display: block; }
+.ln { display: block; white-space: nowrap; }
+.p, .g { display: inline-block; }
+.dv { position: relative; display: inline-block; font-style: italic; color: var(--laranja-forte); }
+.sub { position: absolute; left: 0; bottom: -.12em; width: 100%; height: .16em; overflow: visible; }
+.sub path { fill: none; stroke: var(--laranja); stroke-width: 2.5px; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.ondas.onda-titulo { position: absolute; left: 100%; top: 50%; height: .8em; gap: .1em; margin: -.4em 0 0 .3em; opacity: 0; }
+.ondas.onda-titulo i { width: .16em; border-width: 1.5px; }
+@media (max-width: 359px) { .ondas.onda-titulo { display: none; } }
+.fr-2 .g { opacity: 0; }
+.ln-grande { font-size: 1.3em; line-height: 0; margin-top: .06em; }
+.palavra-titulo { display: block; width: 5.095em; height: .935em; margin: 0 auto; overflow: visible; fill: var(--laranja-forte); }
+.pingo { opacity: 0; }
+.titulo[data-estatico] .fr-2 { display: none; }
+.sub-frase { white-space: normal; max-width: 24em; margin: 1em auto 0; font: 500 clamp(.95rem, 2.1vw, 1.15rem)/1.35 var(--sans); letter-spacing: 0; color: var(--suave); opacity: 0; }
 
 .busca {
   grid-area: busca; display: flex; align-items: stretch;
@@ -165,19 +184,34 @@ body[data-estado="erro"] .status { display: block; }
 body[data-estado="inicio"] .topo {
   grid-template-columns: 1fr; grid-template-areas: "marca" "slogan" "busca";
   justify-items: center; text-align: center;
-  max-width: 760px; padding-top: clamp(20px, 7vh, 72px); gap: 18px;
+  max-width: 760px; padding-top: 6vh; gap: 2.25rem;
 }
 body[data-estado="inicio"] .slogan { display: block; }
 /* na tela inicial o idioma fica no canto superior direito, fora do hero */
 body[data-estado="inicio"] .idioma { position: absolute; top: 16px; right: 24px; }
+/* a marca nasce no centro do hero e desliza para o canto, ao lado do idioma (js/titulo.js) */
+body[data-estado="inicio"] .marca { transform-origin: 0 0; }
+body[data-estado="inicio"][data-marca="canto"] .marca { transform: translate(var(--marca-dx), var(--marca-dy)) scale(var(--marca-escala)); }
+/* a marca fica entre o topo da página e o título, um pouco mais perto do título */
+body[data-estado="inicio"] .marca { margin: 3vh 0 -.75rem; }
 body[data-estado="inicio"] .logo { width: 56px; height: 56px; }
 body[data-estado="inicio"] .marca-nome { font-size: 1.9rem; }
 body[data-estado="inicio"] .busca { width: 100%; height: 60px; box-shadow: var(--sombra); }
 body[data-estado="inicio"] .busca input { font-size: 1.15rem; padding: 0 20px; }
 
-main { max-width: 1320px; margin: 0 auto; padding: 8px 24px 20px; }
+main { max-width: 1320px; margin: 0 auto; padding: 8px 24px 12px; }
+
+/* rodapé sempre no fim da tela, mesmo quando o conteúdo é curto */
+body[data-estado] { display: flex; flex-direction: column; }
+body[data-estado] .topo, body[data-estado] main { width: 100%; }
+body[data-estado] main { flex: 1 0 auto; }
+body[data-estado] .rodape { margin-top: auto; padding-top: 0; }
 
 .inicio { max-width: 900px; margin: 0 auto; text-align: center; }
+/* a folga da tela vai para o espaço entre as frases/recentes e os cards (e não para antes do rodapé) */
+body[data-estado="inicio"] main { display: flex; flex-direction: column; }
+body[data-estado="inicio"] .inicio { flex: 1 0 auto; width: 100%; padding-top: 1.5vh; display: flex; flex-direction: column; }
+body[data-estado="inicio"] .passos { margin-top: auto; padding-top: 44px; }
 .chips { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px; margin-bottom: 12px; }
 .chips-titulo { display: inline-flex; align-items: center; gap: 6px; color: var(--suave); font-size: .85rem; font-weight: 500; }
 .chip-btn {
@@ -190,7 +224,7 @@ main { max-width: 1320px; margin: 0 auto; padding: 8px 24px 20px; }
 .chip-btn:active { transform: translateY(1px); }
 .chip-trocar { display: inline-flex; align-items: center; justify-content: center; width: 34px; padding: 0; }
 
-.passos { list-style: none; display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 28px 0 0; padding: 0; text-align: left; }
+.passos { list-style: none; display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 40px 0 0; padding: 0; text-align: left; }
 .passos li { display: flex; align-items: flex-start; gap: 14px; padding: 18px; animation: entra .35s ease both; }
 .passos li:nth-child(2) { animation-delay: .06s; }
 .passos li:nth-child(3) { animation-delay: .12s; }
@@ -201,7 +235,7 @@ main { max-width: 1320px; margin: 0 auto; padding: 8px 24px 20px; }
 .passo-icone .ic { width: 22px; height: 22px; }
 .passos h2 { font: 700 1.25rem/1.2 var(--serif); margin-bottom: 2px; }
 .passos p { color: var(--suave); font-size: .92rem; line-height: 1.4; }
-.promessa { margin-top: 22px; color: var(--suave); font-size: .9rem; font-weight: 500; }
+.promessa { margin-top: 18px; color: var(--suave); font-size: .9rem; font-weight: 500; }
 
 /* ---------- status (buscando, vazio, erro) ---------- */
 .status { max-width: 520px; margin: 10vh auto 0; padding: 28px 24px; text-align: center; }
@@ -350,6 +384,18 @@ mark {
 }
 
 /* ---------- responsivo ---------- */
+/* telas de notebook (pouca altura): a tela inicial inteira cabe sem rolar */
+@media (min-width: 760px) and (max-height: 760px) {
+  body[data-estado="inicio"] .topo { padding-top: 2vh; gap: 1.5rem; }
+  body[data-estado="inicio"] .marca { margin-top: 1.5vh; }
+  body[data-estado="inicio"] .logo { width: 48px; height: 48px; }
+  body[data-estado="inicio"] .busca { height: 54px; }
+  .chips { margin-bottom: 4px; }
+  body[data-estado="inicio"] .passos { padding-top: 28px; }
+  .passos li { padding: 12px 16px; }
+  .promessa { margin-top: 12px; }
+  body[data-estado] .rodape { padding-top: 6px; }
+}
 @media (max-width: 1100px) {
   .estudio { grid-template-columns: minmax(0, 1fr) 320px; gap: 20px; }
   .lateral { max-height: calc(100dvh - 124px); }
@@ -358,15 +404,17 @@ mark {
   .estudio { grid-template-columns: minmax(0, 1fr); gap: 16px; }
   .palco { width: 100%; justify-self: stretch; }
   .lateral { max-height: none; }
-  .lista { overflow: visible; }
-  .itens { overflow: visible; }
+  /* cabem 5 ocorrências (70px cada + 4px de vão + 16px de respiro); o resto rola dentro da lista, como no desktop */
+  .lista { overflow: hidden; }
+  .itens { max-height: 382px; overflow-y: auto; }
 }
 @media (max-width: 759px) {
   .topo { grid-template-columns: 1fr auto; grid-template-areas: "marca idioma" "busca busca"; gap: 10px 12px; padding: 10px 16px; }
   body[data-estado="inicio"] .topo { grid-template-columns: 1fr; grid-template-areas: "marca" "slogan" "busca"; padding-top: 72px; }
   body[data-estado="inicio"] .idioma { top: 12px; right: 16px; }
   main { padding: 4px 16px 28px; }
-  .passos { grid-template-columns: 1fr; gap: 10px; margin-top: 20px; }
+  .passos { grid-template-columns: 1fr; gap: 10px; margin-top: 36px; }
+  body[data-estado="inicio"] .passos { padding-top: 28px; }
   .passos li { padding: 12px 14px; align-items: center; }
   .rotulo-busca { display: none; }
   .busca .btn { padding: 0 14px; }
@@ -381,4 +429,5 @@ mark {
   #mic-texto { display: none; }
   .item { grid-template-columns: 80px minmax(0, 1fr) auto; }
   .thumb { width: 80px; height: 45px; }
+  .itens { max-height: 337px; } /* 5 × 61px + 4 × 4px + 16px */
 }

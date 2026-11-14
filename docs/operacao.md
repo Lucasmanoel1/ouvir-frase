@@ -1,11 +1,11 @@
-# OuvirFrase: operação em produção
+# Idiomando: operação em produção
 
 Roteiro para colocar o site no ar numa VPS do zero, publicar versões novas, voltar atrás e atualizar o índice. É para copiar e colar: cada passo termina com **Confira**, que diz o que deve aparecer. Se não aparecer, pare ali.
 
 **Como ler**
 - `[PC]` roda no seu computador (PowerShell, na pasta do repositório). `[VPS]` roda na VPS, por SSH.
-- Troque os marcadores: `DOMINIO` (ex.: `ouvirfrase.com.br`), `USUARIO` (seu usuário na VPS) e `IP_DA_VPS`.
-- Os arquivos usados aqui estão em `infra/` (compose de produção, SQL, scripts e Nginx). Na VPS, a pasta `/opt/ouvirfrase` guarda o conteúdo dela, menos o `nginx/`.
+- Troque os marcadores: `DOMINIO` (ex.: `idiomando.com.br`), `USUARIO` (seu usuário na VPS) e `IP_DA_VPS`.
+- Os arquivos usados aqui estão em `infra/` (compose de produção, SQL, scripts e Nginx). Na VPS, a pasta `/opt/idiomando` guarda o conteúdo dela, menos o `nginx/`.
 - Versão testada: Ubuntu Server 24.04 LTS, Nginx 1.24 (o do Ubuntu), Docker Engine com Compose v2.
 
 ---
@@ -17,7 +17,7 @@ internet -> Nginx (443, HTTPS) -> app (127.0.0.1:8080) -> db (rede interna do Co
 ```
 
 - Só o Nginx escuta em IP público (22, 80 e 443). O app publica só em `127.0.0.1`; o banco não publica porta nenhuma.
-- O app roda com o profile `prod`: conecta como `ouvirfrase_app` (só lê, com limite de 3 s por consulta) e não roda o Flyway.
+- O app roda com o profile `prod`: conecta como `idiomando_app` (só lê, com limite de 3 s por consulta) e não roda o Flyway.
 - **Não existem em produção:** o painel de ingestão, a ingestão e a `YOUTUBE_API_KEY`. O YouTube bloqueia IP de nuvem; você ingere no seu computador e leva o banco pronto (seção 15).
 - Sem monitor externo e sem e-mail de alerta (decisão do projeto): se o site cair, você só vê ao abrir o site ou o painel da Hostinger. Por isso a rotina mensal (seção 16) existe.
 
@@ -48,7 +48,7 @@ Os dois devolvem o `IP_DA_VPS`.
 
 **3.1 Chave no seu computador** `[PC]`. Se já existir `id_ed25519`, pule o primeiro comando.
 ```powershell
-ssh-keygen -t ed25519 -C "ouvirfrase-vps"
+ssh-keygen -t ed25519 -C "idiomando-vps"
 Get-Content $env:USERPROFILE\.ssh\id_ed25519.pub
 ```
 Copie a linha que o segundo comando mostra (começa com `ssh-ed25519`). Nunca copie o arquivo sem `.pub`.
@@ -73,7 +73,7 @@ Entra sem pedir senha de login. Na VPS, `sudo whoami` responde `root` (pede a se
 
 **3.3 Desligar senha e login de root** `[VPS]`, como `USUARIO`:
 ```bash
-sudo tee /etc/ssh/sshd_config.d/00-ouvirfrase.conf <<'EOF'
+sudo tee /etc/ssh/sshd_config.d/00-idiomando.conf <<'EOF'
 PasswordAuthentication no
 PermitRootLogin no
 KbdInteractiveAuthentication no
@@ -169,26 +169,26 @@ Saia e entre de novo (`exit`, depois `ssh USUARIO@IP_DA_VPS`) para o grupo valer
 
 ## 6. Arquivos do app
 
-Antes desta seção, a imagem tem que existir no GHCR: faça os passos 1 a 3 da seção 13 com a tag `v0.1.0`. Na primeira vez, torne o pacote **público** (GitHub -> Packages -> `ouvir-frase` -> Package settings -> Change visibility -> Public), senão a VPS precisaria de um token para baixar a imagem.
+Antes desta seção, a imagem tem que existir no GHCR: faça os passos 1 a 3 da seção 13 com a tag `v0.1.0`. Na primeira vez, torne o pacote **público** (GitHub -> Packages -> `idiomando` -> Package settings -> Change visibility -> Public), senão a VPS precisaria de um token para baixar a imagem.
 
 **6.1 Pasta na VPS** `[VPS]`:
 ```bash
-sudo mkdir -p /opt/ouvirfrase && sudo chown $USER: /opt/ouvirfrase
+sudo mkdir -p /opt/idiomando && sudo chown $USER: /opt/idiomando
 ```
 
 **6.2 Copiar `infra/`** `[PC]`, na pasta do repositório. A lista é explícita de propósito: `infra\*` não copia o `.env.exemplo` (arquivo com ponto) e o `nginx\` não vai para esta pasta.
 ```powershell
-scp -r infra\docker-compose.yml infra\.env.exemplo infra\sql infra\scripts USUARIO@IP_DA_VPS:/opt/ouvirfrase/
+scp -r infra\docker-compose.yml infra\.env.exemplo infra\sql infra\scripts USUARIO@IP_DA_VPS:/opt/idiomando/
 ```
 
 **6.3 Preparar o `.env`** `[VPS]`. O `scp` vindo do Windows traz fim de linha CRLF e tira a permissão de execução; os dois primeiros comandos corrigem isso. O `sed` com `openssl` coloca duas senhas longas e diferentes:
 ```bash
-cd /opt/ouvirfrase
+cd /opt/idiomando
 chmod +x scripts/*.sh
 cp .env.exemplo .env
 sed -i 's/\r$//' .env docker-compose.yml sql/*.sql
 sed -i "s|^POSTGRES_SENHA=.*|POSTGRES_SENHA=$(openssl rand -base64 24 | tr -d '/+=')|" .env
-sed -i "s|^OUVIRFRASE_DB_SENHA=.*|OUVIRFRASE_DB_SENHA=$(openssl rand -base64 24 | tr -d '/+=')|" .env
+sed -i "s|^IDIOMANDO_DB_SENHA=.*|IDIOMANDO_DB_SENHA=$(openssl rand -base64 24 | tr -d '/+=')|" .env
 chmod 600 .env
 ```
 **Confira:**
@@ -196,7 +196,7 @@ chmod 600 .env
 ls -l .env                 # -rw------- 1 USUARIO USUARIO
 grep -c troque .env        # 0
 grep -c $'\r' .env         # 0
-sed 's/=.*/=.../' .env     # mostra VERSAO=..., POSTGRES_SENHA=... e OUVIRFRASE_DB_SENHA=... sem revelar valores
+sed 's/=.*/=.../' .env     # mostra VERSAO=..., POSTGRES_SENHA=... e IDIOMANDO_DB_SENHA=... sem revelar valores
 ```
 Guarde as duas senhas no seu gerenciador de senhas (`cat .env`). **Nunca** ponha `YOUTUBE_API_KEY` neste arquivo: a ingestão não roda aqui.
 
@@ -208,7 +208,7 @@ Se o pacote do GHCR ficasse privado, faltaria o login: `docker login ghcr.io -u 
 
 **7.1 Subir o banco** `[VPS]`:
 ```bash
-cd /opt/ouvirfrase
+cd /opt/idiomando
 docker compose up -d db
 docker compose ps
 ```
@@ -217,36 +217,36 @@ docker compose ps
 **7.2 Criar o papel do app** (uma vez por servidor):
 ```bash
 set -a; . ./.env; set +a
-docker compose exec -T db psql -U postgres -v senha="$OUVIRFRASE_DB_SENHA" -f /sql/criar-papel-app.sql
+docker compose exec -T db psql -U postgres -v senha="$IDIOMANDO_DB_SENHA" -f /sql/criar-papel-app.sql
 ```
 **Confira:** `CREATE ROLE`, `ALTER ROLE`, `ALTER ROLE`.
 
 **7.3 Primeira carga do índice.** Gere o dump no seu computador `[PC]`. Dentro do contêiner, porque o `>` do PowerShell corrompe arquivo binário:
 ```powershell
-docker compose exec db pg_dump -U postgres -d ouvirfrase -Fc -f /tmp/ouvirfrase.dump
-docker compose cp db:/tmp/ouvirfrase.dump .\ouvirfrase-AAAA-MM-DD.dump
-docker compose exec db rm /tmp/ouvirfrase.dump
-docker compose exec db psql -U postgres -d ouvirfrase -tA -c "SELECT (SELECT count(*) FROM video) || ' videos, ' || (SELECT count(*) FROM ocorrencia) || ' ocorrencias'"
+docker compose exec db pg_dump -U postgres -d idiomando -Fc -f /tmp/idiomando.dump
+docker compose cp db:/tmp/idiomando.dump .\idiomando-AAAA-MM-DD.dump
+docker compose exec db rm /tmp/idiomando.dump
+docker compose exec db psql -U postgres -d idiomando -tA -c "SELECT (SELECT count(*) FROM video) || ' videos, ' || (SELECT count(*) FROM ocorrencia) || ' ocorrencias'"
 ```
 Anote a contagem. O `.dump` é ignorado pelo Git. Envie para a VPS:
 ```powershell
-scp .\ouvirfrase-AAAA-MM-DD.dump USUARIO@IP_DA_VPS:/opt/ouvirfrase/
+scp .\idiomando-AAAA-MM-DD.dump USUARIO@IP_DA_VPS:/opt/idiomando/
 ```
 Na VPS `[VPS]`. Só na primeira carga, crie o contêiner do app antes (sem iniciar), para o script poder parar e subir o app:
 ```bash
-cd /opt/ouvirfrase
+cd /opt/idiomando
 docker compose pull app
 docker compose create app
-./scripts/atualizar-indice.sh ouvirfrase-AAAA-MM-DD.dump
+./scripts/atualizar-indice.sh idiomando-AAAA-MM-DD.dump
 ```
 O script restaura num banco novo, aplica as permissões, roda `ANALYZE`, mostra as contagens do banco atual e do novo e pergunta `Trocar? (s/N)`. Na primeira vez o banco "atual" está vazio, e a linha dele mostra `relation "video" does not exist`: é esperado. Confira que o **novo** bate com a contagem que você anotou e responda `s`. O script troca os bancos, sobe o app e termina com `App no ar` e a lista de idiomas.
 
-Depois apague o dump da VPS para liberar espaço: `rm ouvirfrase-AAAA-MM-DD.dump`.
+Depois apague o dump da VPS para liberar espaço: `rm idiomando-AAAA-MM-DD.dump`.
 
 **Confira o papel do app** (nenhum dos dois comandos pode gravar algo; o `INSERT` é malformado de propósito):
 ```bash
 set -a; . ./.env; set +a
-docker compose exec -T -e PGPASSWORD="$OUVIRFRASE_DB_SENHA" db psql -h localhost -U ouvirfrase_app -d ouvirfrase -c "SELECT count(*) FROM video" -c "SHOW statement_timeout" -c "INSERT INTO video (id) VALUES (-1)"
+docker compose exec -T -e PGPASSWORD="$IDIOMANDO_DB_SENHA" db psql -h localhost -U idiomando_app -d idiomando -c "SELECT count(*) FROM video" -c "SHOW statement_timeout" -c "INSERT INTO video (id) VALUES (-1)"
 ```
 O `count` bate com o que você anotou, o timeout é `3s` e o `INSERT` falha com `cannot execute INSERT in a read-only transaction`.
 
@@ -256,7 +256,7 @@ O `count` bate com o que você anotou, o timeout é `3s` e o `INSERT` falha com 
 
 Na primeira carga, o script do passo 7.3 já subiu o app; aqui você confirma. Em outro momento, é o que sobe o app.
 ```bash
-cd /opt/ouvirfrase
+cd /opt/idiomando
 docker compose pull app
 docker compose up -d app
 docker compose ps
@@ -267,10 +267,10 @@ curl -s 127.0.0.1:8080/actuator/health        # {"status":"UP"}
 curl -s 127.0.0.1:8080/api/idiomas            # ["en","es","ru"] (os idiomas indexados)
 docker inspect --format '{{.Name}} {{.HostConfig.LogConfig.Type}}' $(docker compose ps -q)   # os dois com "local"
 ```
-Se o `health` não subir em 1 minuto: `docker compose logs app | tail -40`. Erros comuns: `Could not resolve placeholder 'OUVIRFRASE_DB_SENHA'` (variável faltando no `.env`) e `password authentication failed` (a senha do `.env` não é a que você usou no passo 7.2). Para alinhar o papel com o `.env`:
+Se o `health` não subir em 1 minuto: `docker compose logs app | tail -40`. Erros comuns: `Could not resolve placeholder 'IDIOMANDO_DB_SENHA'` (variável faltando no `.env`) e `password authentication failed` (a senha do `.env` não é a que você usou no passo 7.2). Para alinhar o papel com o `.env`:
 ```bash
 set -a; . ./.env; set +a
-echo "ALTER ROLE ouvirfrase_app PASSWORD :'senha';" | docker compose exec -T db psql -U postgres -v senha="$OUVIRFRASE_DB_SENHA"
+echo "ALTER ROLE idiomando_app PASSWORD :'senha';" | docker compose exec -T db psql -U postgres -v senha="$IDIOMANDO_DB_SENHA"
 docker compose restart app
 ```
 
@@ -289,7 +289,7 @@ sudo rm -f /etc/nginx/sites-enabled/default
 
 **9.2 Fase 1, bloco mínimo na porta 80:**
 ```bash
-sudo tee /etc/nginx/conf.d/ouvirfrase.conf <<'EOF'
+sudo tee /etc/nginx/conf.d/idiomando.conf <<'EOF'
 server {
     listen 80;
     listen [::]:80;
@@ -300,10 +300,10 @@ server {
     }
 }
 EOF
-sudo sed -i "s/DOMINIO/$DOMINIO/g" /etc/nginx/conf.d/ouvirfrase.conf
+sudo sed -i "s/DOMINIO/$DOMINIO/g" /etc/nginx/conf.d/idiomando.conf
 sudo nginx -t && sudo systemctl reload nginx
 ```
-Se o `nginx -t` reclamar de `socket() [::]:80 failed`, a VPS não tem IPv6: apague as linhas com `listen [::]` (`sudo sed -i '/listen \[::\]/d' /etc/nginx/conf.d/ouvirfrase.conf`) e não crie o registro AAAA.
+Se o `nginx -t` reclamar de `socket() [::]:80 failed`, a VPS não tem IPv6: apague as linhas com `listen [::]` (`sudo sed -i '/listen \[::\]/d' /etc/nginx/conf.d/idiomando.conf`) e não crie o registro AAAA.
 
 **Confira** `[PC]`: `curl.exe -i http://DOMINIO/actuator/health` devolve `{"status":"UP"}`.
 
@@ -318,14 +318,14 @@ sudo ls /etc/letsencrypt/live/$DOMINIO /etc/letsencrypt/options-ssl-nginx.conf /
 
 **9.4 Fase 2, o arquivo versionado.** `[PC]`:
 ```powershell
-scp infra\nginx\ouvirfrase.conf USUARIO@IP_DA_VPS:/tmp/
+scp infra\nginx\idiomando.conf USUARIO@IP_DA_VPS:/tmp/
 ```
 `[VPS]`:
 ```bash
-sudo install -m 644 /tmp/ouvirfrase.conf /etc/nginx/conf.d/ouvirfrase.conf
-sudo sed -i -e 's/\r$//' -e "s/DOMINIO/$DOMINIO/g" /etc/nginx/conf.d/ouvirfrase.conf
+sudo install -m 644 /tmp/idiomando.conf /etc/nginx/conf.d/idiomando.conf
+sudo sed -i -e 's/\r$//' -e "s/DOMINIO/$DOMINIO/g" /etc/nginx/conf.d/idiomando.conf
 sudo nginx -t && sudo systemctl reload nginx
-rm /tmp/ouvirfrase.conf
+rm /tmp/idiomando.conf
 sudo certbot renew --dry-run
 ```
 **Confira:** `nginx -t` ok (se reclamar de `[::]`, mesma regra do 9.2) e `Congratulations, all simulated renewals succeeded`. A renovação roda sozinha por um timer do snap (`systemctl list-timers | grep certbot`).
@@ -348,7 +348,7 @@ O arquivo sobe com `Content-Security-Policy-Report-Only`: o navegador só **regi
 2. Faça a sessão completa: buscar uma frase, trocar de resultado, tocar o vídeo, ligar o loop, apertar **Falar** (aceite o microfone), usar a tradução, copiar o link.
 3. Procure no console mensagens `[Report Only] Refused to ...`. Sem nenhuma, passe para o modo que bloqueia:
 ```bash
-sudo sed -i 's/Content-Security-Policy-Report-Only/Content-Security-Policy/' /etc/nginx/conf.d/ouvirfrase.conf
+sudo sed -i 's/Content-Security-Policy-Report-Only/Content-Security-Policy/' /etc/nginx/conf.d/idiomando.conf
 sudo nginx -t && sudo systemctl reload nginx
 ```
 4. Repita a sessão completa. Se algo quebrar, volte o nome para `-Report-Only` e anote a violação.
@@ -364,7 +364,7 @@ curl.exe -s https://DOMINIO/actuator/health                               # {"st
 
 **Uma semana depois**, sem problema, suba o HSTS para um ano (não use `preload`):
 ```bash
-sudo sed -i 's/max-age=300/max-age=31536000/' /etc/nginx/conf.d/ouvirfrase.conf
+sudo sed -i 's/max-age=300/max-age=31536000/' /etc/nginx/conf.d/idiomando.conf
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
@@ -378,7 +378,7 @@ sudo nginx -t && sudo systemctl reload nginx
 ```
 **Confira:** as primeiras ~11 respostas são `200`, as seguintes `429`, e a busca feita no site durante o laço mostra a mensagem "Muitas buscas seguidas. Espere alguns segundos e tente de novo." no lugar dos resultados. Cinco segundos depois do fim, a busca volta a funcionar. Uso normal (uma busca a cada poucos segundos, cliques em exemplos) nunca recebe 429.
 
-**11.2 IP no log** `[VPS]`: `sudo tail -3 /var/log/nginx/ouvirfrase.access.log` mostra o **seu IP público**, não `127.0.0.1`.
+**11.2 IP no log** `[VPS]`: `sudo tail -3 /var/log/nginx/idiomando.access.log` mostra o **seu IP público**, não `127.0.0.1`.
 
 **11.3 Portas** `[PC]`:
 ```powershell
@@ -387,7 +387,7 @@ Test-NetConnection DOMINIO -Port 5432   # False
 Test-NetConnection DOMINIO -Port 8080   # False
 ```
 
-> **Os números** (1 busca/s por IP com rajada de 10; 5 legendas/s com rajada de 20; teto global de 10 buscas/s) são ponto de partida. Atrás de CGNAT (comum em celular no Brasil) vários usuários dividem um IP, por isso as rajadas são folgadas. Para mudar, edite `rate=` e `burst=` em `/etc/nginx/conf.d/ouvirfrase.conf` e rode `sudo nginx -t && sudo systemctl reload nginx`. Guarde a mudança também em `infra/nginx/ouvirfrase.conf`.
+> **Os números** (1 busca/s por IP com rajada de 10; 5 legendas/s com rajada de 20; teto global de 10 buscas/s) são ponto de partida. Atrás de CGNAT (comum em celular no Brasil) vários usuários dividem um IP, por isso as rajadas são folgadas. Para mudar, edite `rate=` e `burst=` em `/etc/nginx/conf.d/idiomando.conf` e rode `sudo nginx -t && sudo systemctl reload nginx`. Guarde a mudança também em `infra/nginx/idiomando.conf`.
 
 O site está no ar. Daqui para baixo, é a rotina.
 
@@ -404,7 +404,7 @@ Devolve `daily` e `rotate 14`.
 **Relatório com o GoAccess** (requisições por rota, status e tempo, nos 14 dias):
 ```bash
 sudo apt install -y goaccess
-sudo zcat -f /var/log/nginx/ouvirfrase.access.log* | goaccess - \
+sudo zcat -f /var/log/nginx/idiomando.access.log* | goaccess - \
   --log-format='%h - [%d:%t %^] "%r" %s %b "%R" "%u" rt=%T urt=%^' \
   --date-format=%d/%b/%Y --time-format=%T -o /tmp/relatorio.html
 ```
@@ -416,7 +416,7 @@ scp USUARIO@IP_DA_VPS:/tmp/relatorio.html .
 
 **Tempo de resposta da busca (mediana e p95).** O GoAccess não mostra percentis; este comando conta só as buscas que deram 200:
 ```bash
-sudo zcat -f /var/log/nginx/ouvirfrase.access.log* | grep '"GET /api/busca[^"]*" 200 ' | grep -o ' rt=[0-9.]*' | cut -d= -f2 | sort -n \
+sudo zcat -f /var/log/nginx/idiomando.access.log* | grep '"GET /api/busca[^"]*" 200 ' | grep -o ' rt=[0-9.]*' | cut -d= -f2 | sort -n \
   | awk '{a[NR]=$1} END{ if (NR) print "buscas=" NR, "p50=" a[int(NR*0.5)+1] "s", "p95=" a[int(NR*0.95)+1] "s", "max=" a[NR] "s"; else print "sem dados" }'
 ```
 
@@ -426,10 +426,10 @@ sudo zcat -f /var/log/nginx/ouvirfrase.access.log* | grep '"GET /api/busca[^"]*"
 
 1. No GitHub, os PRs da mudança entram na `develop`; depois um PR `develop` -> `main` (título `release: vX.Y.Z`).
 2. Na `main` atualizada, crie e envie a tag (no IntelliJ: Git -> New Tag `vX.Y.Z`, depois Push com "Push tags").
-3. Abra Actions: o job `build` e depois `imagem` ficam verdes. Tag com teste quebrado **não** gera imagem. O pacote `ghcr.io/lucasmanoel1/ouvir-frase:X.Y.Z` aparece em Packages.
+3. Abra Actions: o job `build` e depois `imagem` ficam verdes. Tag com teste quebrado **não** gera imagem. O pacote `ghcr.io/lucasmanoel1/idiomando:X.Y.Z` aparece em Packages.
 4. Na VPS `[VPS]`:
 ```bash
-cd /opt/ouvirfrase
+cd /opt/idiomando
 sed -i 's/^VERSAO=.*/VERSAO=X.Y.Z/' .env
 docker compose pull app
 docker compose up -d app
@@ -446,7 +446,7 @@ curl -s "https://DOMINIO/api/busca?frase=hello" | head -c 200
 ## 14. Voltar uma versão
 
 ```bash
-cd /opt/ouvirfrase
+cd /opt/idiomando
 sed -i 's/^VERSAO=.*/VERSAO=VERSAO_ANTERIOR/' .env
 docker compose up -d app
 ```
@@ -460,15 +460,15 @@ Se a imagem anterior já foi removida da VPS (seção 16), rode `docker compose 
 
 **Atualizar.** Depois de ingerir no seu computador:
 1. `[PC]` Dump, com a contagem para comparar (comandos do passo 7.3).
-2. `[PC]` `scp .\ouvirfrase-AAAA-MM-DD.dump USUARIO@IP_DA_VPS:/opt/ouvirfrase/`
+2. `[PC]` `scp .\idiomando-AAAA-MM-DD.dump USUARIO@IP_DA_VPS:/opt/idiomando/`
 3. `[VPS]`
 ```bash
-cd /opt/ouvirfrase
+cd /opt/idiomando
 df -h /          # precisa caber mais uma copia do indice: o script mantem o banco atual, o novo e o antigo
-./scripts/atualizar-indice.sh ouvirfrase-AAAA-MM-DD.dump
-rm ouvirfrase-AAAA-MM-DD.dump
+./scripts/atualizar-indice.sh idiomando-AAAA-MM-DD.dump
+rm idiomando-AAAA-MM-DD.dump
 ```
-O script restaura num banco novo, aplica as permissões, roda `ANALYZE` e mostra as contagens do atual e do novo. Só responda `s` se o **novo** bater com o que você anotou no passo 1. Responder qualquer outra coisa cancela e deixa o banco atual no ar. Ao trocar, o site fica fora do ar por alguns segundos; o banco anterior vira `ouvirfrase_antigo`.
+O script restaura num banco novo, aplica as permissões, roda `ANALYZE` e mostra as contagens do atual e do novo. Só responda `s` se o **novo** bater com o que você anotou no passo 1. Responder qualquer outra coisa cancela e deixa o banco atual no ar. Ao trocar, o site fica fora do ar por alguns segundos; o banco anterior vira `idiomando_antigo`.
 
 **Confira:** o script termina com `App no ar` e a lista de idiomas; faça uma busca no site.
 
@@ -476,7 +476,7 @@ O script restaura num banco novo, aplica as permissões, roda `ANALYZE` e mostra
 ```bash
 ./scripts/voltar-indice.sh
 ```
-Troca `ouvirfrase` e `ouvirfrase_antigo`. Rodar de novo desfaz a volta. Não existindo `ouvirfrase_antigo`, o script avisa e não faz nada. O antigo só é apagado na **próxima** atualização (o script faz isso sozinho).
+Troca `idiomando` e `idiomando_antigo`. Rodar de novo desfaz a volta. Não existindo `idiomando_antigo`, o script avisa e não faz nada. O antigo só é apagado na **próxima** atualização (o script faz isso sozinho).
 
 ---
 
@@ -509,7 +509,7 @@ O limite por IP não segura muitos IPs diferentes. A Cloudflare absorve o tráfe
 { for f in ips-v4 ips-v6; do curl -fsS https://www.cloudflare.com/$f; echo; done | grep . | sed 's/^/set_real_ip_from /; s/$/;/'; echo 'real_ip_header CF-Connecting-IP;'; } | sudo tee /etc/nginx/conf.d/cloudflare-realip.conf
 sudo nginx -t && sudo systemctl reload nginx
 ```
-**Confira:** `sudo tail -3 /var/log/nginx/ouvirfrase.access.log` mostra IPs de visitantes, não os da Cloudflare.
+**Confira:** `sudo tail -3 /var/log/nginx/idiomando.access.log` mostra IPs de visitantes, não os da Cloudflare.
 3. **Firewall:** 80 e 443 só para as faixas da Cloudflare.
 ```bash
 for ip in $(curl -fsS https://www.cloudflare.com/ips-v4; echo; curl -fsS https://www.cloudflare.com/ips-v6); do sudo ufw allow from $ip to any port 80,443 proto tcp; done
@@ -529,7 +529,7 @@ Quando alguém pedir ou um vídeo for removido do YouTube. Sem canal de contato 
 
 1. `[PC]` Remova do banco **local** (substitua `YOUTUBE_ID`). O `video_descartado` impede que a ingestão traga o vídeo de volta; as tabelas filhas saem primeiro por causa das chaves estrangeiras:
 ```powershell
-docker compose exec db psql -U postgres -d ouvirfrase -v ON_ERROR_STOP=1 -c "BEGIN;" -c "DELETE FROM ocorrencia WHERE video_id = (SELECT id FROM video WHERE youtube_id = 'YOUTUBE_ID');" -c "DELETE FROM trecho WHERE video_id = (SELECT id FROM video WHERE youtube_id = 'YOUTUBE_ID');" -c "DELETE FROM video WHERE youtube_id = 'YOUTUBE_ID';" -c "INSERT INTO video_descartado (youtube_id, motivo) VALUES ('YOUTUBE_ID', 'REMOVIDO_MANUAL') ON CONFLICT DO NOTHING;" -c "COMMIT;"
+docker compose exec db psql -U postgres -d idiomando -v ON_ERROR_STOP=1 -c "BEGIN;" -c "DELETE FROM ocorrencia WHERE video_id = (SELECT id FROM video WHERE youtube_id = 'YOUTUBE_ID');" -c "DELETE FROM trecho WHERE video_id = (SELECT id FROM video WHERE youtube_id = 'YOUTUBE_ID');" -c "DELETE FROM video WHERE youtube_id = 'YOUTUBE_ID';" -c "INSERT INTO video_descartado (youtube_id, motivo) VALUES ('YOUTUBE_ID', 'REMOVIDO_MANUAL') ON CONFLICT DO NOTHING;" -c "COMMIT;"
 ```
 **Confira:** `DELETE` com contagens maiores que zero nas três primeiras linhas e `INSERT 0 1`.
 2. Se o vídeo estiver num CSV de `data/`, comente a linha com `#` (a lista continua igual para quem refizer a carga).

@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="src/main/resources/static/favicon.svg" width="96" alt="Logo do OuvirFrase: balão de fala laranja com uma onda sonora">
+<img src="src/main/resources/static/favicon.svg" width="96" alt="Logo do Idiomando: balão de fala laranja com uma onda sonora">
 
-# OuvirFrase
+# Idiomando
 
 **Busque. Ouça. Repita.**
 
@@ -73,7 +73,7 @@ As migrações do Flyway rodam na subida. O banco começa vazio: rode a ingestã
 Para consultar o banco direto (por exemplo, conferir o que foi indexado):
 
 ```bash
-docker compose exec db psql -U postgres -d ouvirfrase
+docker compose exec db psql -U postgres -d idiomando
 ```
 
 ---
@@ -223,12 +223,12 @@ node --test "src/test/js/*.test.mjs"
 
 ## Produção
 
-O site roda numa VPS Linux: Nginx com HTTPS na frente, o app e o PostgreSQL em contêineres (`infra/docker-compose.yml`) e a imagem publicada no GitHub Container Registry a cada tag `v*`. Em produção o app só lê o banco (papel `ouvirfrase_app`, com limite de 3 s por consulta) e o índice chega como um dump gerado no computador de quem faz a ingestão. O passo a passo, do servidor vazio ao HTTPS, mais publicar uma versão, voltar atrás, atualizar o índice e ler os logs, está em [`docs/operacao.md`](docs/operacao.md).
+O site roda numa VPS Linux: Nginx com HTTPS na frente, o app e o PostgreSQL em contêineres (`infra/docker-compose.yml`) e a imagem publicada no GitHub Container Registry a cada tag `v*`. Em produção o app só lê o banco (papel `idiomando_app`, com limite de 3 s por consulta) e o índice chega como um dump gerado no computador de quem faz a ingestão. O passo a passo, do servidor vazio ao HTTPS, mais publicar uma versão, voltar atrás, atualizar o índice e ler os logs, está em [`docs/operacao.md`](docs/operacao.md).
 
 ## Estrutura
 
 ```
-src/main/java/com/lucasmanoel/ouvirfrase/
+src/main/java/com/lucasmanoel/idiomando/
   controller/  service/  repository/  model/  dto/   # a API de busca (camadas)
   ingestao/                    # pipeline offline (perfil "ingestao"): serviço, runner, filtro, IngestaoProperties
     catalogo/                  #   leitura dos CSVs e ListaDeVideos (idioma + nome do CSV)

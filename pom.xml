@@ -10,7 +10,7 @@
 	</parent>
 	<groupId>com.lucasmanoel</groupId>
 	<artifactId>Idiomando</artifactId>
-	<version>0.1.0</version>
+	<version>0.1.1</version>
 	<name>Idiomando</name>
 	<description>Busca de frases faladas em vídeos do YouTube para praticar idiomas.</description>
 	<url>https://github.com/Lucasmanoel1/idiomando</url>

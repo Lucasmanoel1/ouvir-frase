@@ -9,14 +9,14 @@
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>com.lucasmanoel</groupId>
-	<artifactId>OuvirFrase</artifactId>
+	<artifactId>Idiomando</artifactId>
 	<version>0.1.0</version>
-	<name>OuvirFrase</name>
+	<name>Idiomando</name>
 	<description>Busca de frases faladas em vídeos do YouTube para praticar idiomas.</description>
-	<url>https://github.com/Lucasmanoel1/ouvir-frase</url>
+	<url>https://github.com/Lucasmanoel1/idiomando</url>
 	<scm>
-		<connection>scm:git:https://github.com/Lucasmanoel1/ouvir-frase.git</connection>
-		<url>https://github.com/Lucasmanoel1/ouvir-frase</url>
+		<connection>scm:git:https://github.com/Lucasmanoel1/idiomando.git</connection>
+		<url>https://github.com/Lucasmanoel1/idiomando</url>
 	</scm>
 	<properties>
 		<java.version>21</java.version>

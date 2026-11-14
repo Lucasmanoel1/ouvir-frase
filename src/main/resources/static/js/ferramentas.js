@@ -6,7 +6,7 @@ import { criarRelogio } from './relogio.js';
 const VELOCIDADES = [0.25, 0.5, 0.75, 1, 1.25, 1.5];
 const SALTO_SEG = 2;
 const OCULTA_MS = 250; // com a aba em segundo plano o requestAnimationFrame para; o loop do trecho segue por este relógio lento
-const CHAVE_VELOCIDADE = 'ouvirfrase.velocidade';
+const CHAVE_VELOCIDADE = 'idiomando.velocidade';
 // Loop: 'desligado', 'ligado' (só neste resultado) ou 'automatico' (continua ao trocar de resultado).
 const LOOP_VISUAL = {
   desligado: { icone: 'i-repeat', rotulo: 'Repetir o trecho em loop' },

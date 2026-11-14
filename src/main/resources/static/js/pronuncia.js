@@ -1,5 +1,5 @@
 // Pronúncia: o usuário repete a frase no microfone (Web Speech API) e comparamos palavra por palavra.
-// O OuvirFrase não recebe o áudio: quem reconhece a fala é o serviço de voz do navegador.
+// O Idiomando não recebe o áudio: quem reconhece a fala é o serviço de voz do navegador.
 import { $ } from './util.js';
 import { comparar, tokens, deveMostrarOuvido, alternativasDe } from './comparacao.js';
 

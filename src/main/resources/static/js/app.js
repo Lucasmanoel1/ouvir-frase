@@ -1,4 +1,4 @@
-// OuvirFrase: orquestra a busca. Cada parte da tela fica no seu módulo.
+// Idiomando: orquestra a busca. Cada parte da tela fica no seu módulo.
 import { $, tela, faltaEsperar } from './util.js';
 import { busca } from './estado.js';
 import { buscarFrases, ERRO_PADRAO } from './api.js';
@@ -67,7 +67,7 @@ async function buscar(texto) {
   }
 
   guardarHistorico(busca.frase);
-  document.title = busca.frase + ' · OuvirFrase';
+  document.title = busca.frase + ' · Idiomando';
   tela('resultados');
   busca.indice = 0;
   montarLista();

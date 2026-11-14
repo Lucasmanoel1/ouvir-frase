@@ -8,7 +8,7 @@ RUN mvn -B -q -DskipTests package
 
 # --- runtime ---
 FROM eclipse-temurin:21-jre
-LABEL org.opencontainers.image.source="https://github.com/Lucasmanoel1/ouvir-frase"
+LABEL org.opencontainers.image.source="https://github.com/Lucasmanoel1/idiomando"
 WORKDIR /app
 RUN useradd --system --no-create-home app
 COPY --from=build /app/target/*.jar app.jar

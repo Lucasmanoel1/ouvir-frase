@@ -2,7 +2,7 @@
 // O alvo é sempre o português. estado: indisponivel | inativo | baixando | pronto
 import { $, lerPreferencia, gravarPreferencia } from './util.js';
 
-const CHAVE = 'ouvirfrase.traducao';
+const CHAVE = 'idiomando.traducao';
 const IDIOMA_ALVO = 'pt';
 
 let ligada = lerPreferencia(CHAVE) !== 'nao';
